@@ -221,11 +221,20 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
             best_split = _find_best_split_in_range(
                 silence_regions, current_start, silence_start, current_start + max_chunk_ms
             )
-            split_points.append(best_split)
+            # 避免重复添加切分点
+            if best_split != split_points[-1]:
+                split_points.append(best_split)
             current_start = best_split
+            
+            # 强制切分后重新计算到当前停顿的距离
+            segment_length = silence_start - current_start
+            if segment_length >= max_chunk_ms:
+                # 仍然过长，跳过当前停顿，继续找下一个
+                continue
         
-        # 在当前停顿处切分
-        split_points.append(silence_start)
+        # 在当前停顿处切分（避免重复）
+        if silence_start != split_points[-1]:
+            split_points.append(silence_start)
         current_start = silence_end
     
     # 确保最后一个切分点是音频结尾
@@ -237,8 +246,10 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
             best_split = _find_best_split_in_range(
                 silence_regions, current_start, duration_ms, current_start + max_chunk_ms
             )
-            split_points.append(best_split)
-        split_points.append(duration_ms)
+            if best_split != split_points[-1]:
+                split_points.append(best_split)
+        if duration_ms != split_points[-1]:
+            split_points.append(duration_ms)
     
     return split_points
 
@@ -312,8 +323,12 @@ split_audio = split_audio_smart
 def cleanup_files(paths):
     """清理临时文件和目录"""
     for path in paths:
-        if os.path.exists(path):
+        if not os.path.exists(path):
+            continue
+        try:
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                shutil.rmtree(path, ignore_errors=True)
             else:
                 os.remove(path)
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to cleanup {path}: {e}")

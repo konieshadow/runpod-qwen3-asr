@@ -2,7 +2,7 @@ import runpod
 import torch
 import os
 from qwen_asr import Qwen3ASRModel
-from utils import download_audio, split_audio, cleanup_files
+from utils import download_audio, split_audio_smart, cleanup_files
 
 # --- 配置 ---
 # 可以根据需要修改为 "Qwen/Qwen3-ASR-1.7B"
@@ -153,17 +153,36 @@ def handler(job):
             
             res = results[0]
             
-            # 合并文本
-            if hasattr(res, 'text'):
-                full_text += res.text + " "
+            # 处理不同格式的返回结果（对象或字典）
+            # 获取文本
+            text = res.text if hasattr(res, 'text') else res.get('text', '') if isinstance(res, dict) else ''
+            if text:
+                full_text += text + " "
             
             # 记录检测到的语言
+            language_val = None
             if hasattr(res, 'language'):
-                last_detected_language = res.language
+                language_val = res.language
+            elif isinstance(res, dict) and 'language' in res:
+                language_val = res['language']
+            if language_val:
+                last_detected_language = language_val
+            
+            # 获取时间戳数据（支持 time_stamps 或 chunks 字段）
+            timestamps_data = None
+            if hasattr(res, 'time_stamps') and res.time_stamps:
+                timestamps_data = res.time_stamps
+            elif hasattr(res, 'chunks') and res.chunks:
+                timestamps_data = res.chunks
+            elif isinstance(res, dict):
+                if res.get('time_stamps'):
+                    timestamps_data = res['time_stamps']
+                elif res.get('chunks'):
+                    timestamps_data = res['chunks']
             
             # 调整时间戳并合并
-            if hasattr(res, 'time_stamps') and res.time_stamps:
-                for segment in res.time_stamps:
+            if timestamps_data:
+                for segment in timestamps_data:
                     adjusted_segment = _parse_timestamp_segment(segment, time_offset)
                     full_transcript.append(adjusted_segment)
             
