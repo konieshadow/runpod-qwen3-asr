@@ -30,6 +30,7 @@ RUN python builder/fetch_models.py
 
 # 4. 复制源代码
 COPY src/ .
+COPY test_input.json .
 
 # 5. 设置启动命令
 # 使用 RunPod 推荐的方式启动 worker

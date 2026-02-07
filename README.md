@@ -60,7 +60,9 @@ Workers: Min 0, Max 5 (根据需求)。
 {
   "input": {
     "audio_url": "https://example.com/podcast_episode.mp3",
-    "language": "auto"
+    "language": "auto",
+    "initial_context": "",
+    "use_previous_context": false
   }
 }
 ```
@@ -100,6 +102,17 @@ Workers: Min 0, Max 5 (根据需求)。
 | `"Romanian"` | 罗马尼亚语 |
 | `"Hungarian"` | 匈牙利语 |
 | `"Macedonian"` | 马其顿语 |
+
+### 上下文参数说明
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `initial_context` | string | `null` | 初始上下文文本，用于第一个音频片段的转录 |
+| `use_previous_context` | boolean | `false` | 是否开启上下文传递模式。开启后，上一个 chunk 的转录结果会自动作为下一个 chunk 的上下文 |
+
+**上下文功能说明：**
+- `initial_context`: 在转录第一个音频片段前提供前置文本，帮助模型理解上下文，提高转录准确性。
+- `use_previous_context`: 对于长音频切分后的连续转录，开启此选项可以将上一个片段的转录结果（最后 200 字符）传递给下一个片段，保持上下文的连贯性。
 
 > **注意**: 如果不指定 `language` 参数或使用 `"auto"`，模型将自动检测音频语言。
 

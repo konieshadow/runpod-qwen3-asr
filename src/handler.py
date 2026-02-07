@@ -23,7 +23,7 @@ def init_model():
             # 使用 vLLM 后端加载，通过 GPU 加速
             model = Qwen3ASRModel.LLM(
                 model=MODEL_DIR,
-                gpu_memory_utilization=0.7, # 根据显卡显存调整，0.7 适合 24GB 显卡同时跑其他任务
+                gpu_memory_utilization=0.8, # 根据显卡显存调整，0.7 适合 24GB 显卡同时跑其他任务
                 max_new_tokens=4096,
                 forced_aligner=ALIGNER_DIR,
                 forced_aligner_kwargs={
@@ -113,7 +113,9 @@ def handler(job):
     job_input = job["input"]
     audio_url = job_input.get("audio_url")
     language = job_input.get("language", None)
-    
+    initial_context = job_input.get("initial_context", None)
+    use_previous_context = job_input.get("use_previous_context", False)
+
     # 转换 "auto" 为 None，因为模型不支持 "auto" 字符串，使用 None 表示自动检测
     if isinstance(language, str) and language.lower() == "auto":
         language = None
@@ -144,10 +146,13 @@ def handler(job):
         full_transcript = []
         full_text = ""
         last_detected_language = None
-        
+
+        # 初始化上下文：使用 initial_context 或 None
+        current_context = initial_context if initial_context else None
+
         # 4. 逐个片段转录
         print(f"🔄 Processing {len(chunks_info)} chunks...")
-        
+
         for idx, chunk in enumerate(chunks_info):
             chunk_path = chunk["path"]
             time_offset = chunk["start_time_sec"]
@@ -161,11 +166,12 @@ def handler(job):
             print(f"  📝 Processing chunk {idx + 1}/{len(chunks_info)} ({chunk['start_time_sec']:.1f}s - {chunk['end_time_sec']:.1f}s)...")
             
             try:
-                # 调用模型转录
+                # 调用模型转录，传入当前上下文
                 results = model.transcribe(
                     audio=chunk_path,
                     language=language,
-                    return_time_stamps=True
+                    return_time_stamps=True,
+                    context=current_context
                 )
             except Exception as e:
                 # 如果转录失败（如空音频导致强制对齐出错），记录警告并跳过该片段
@@ -206,7 +212,13 @@ def handler(job):
                 for segment in timestamps_data:
                     adjusted_segment = _parse_timestamp_segment(segment, time_offset)
                     full_transcript.append(adjusted_segment)
-            
+
+            # 如果开启 use_previous_context，将当前 chunk 的文本作为下一个 chunk 的上下文
+            if use_previous_context and text:
+                # 取当前 chunk 文本的最后 200 个字符作为下一个 chunk 的上下文
+                # 这个长度可以根据模型支持的最大 context 长度调整
+                current_context = text.strip()[-200:] if len(text) > 200 else text.strip()
+
             # 每处理 3 个片段清理一次 KV cache，防止 OOM
             if (idx + 1) % 3 == 0:
                 _clear_kv_cache()
