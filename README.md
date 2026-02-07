@@ -84,7 +84,22 @@ Workers: Min 0, Max 5 (根据需求)。
 | `"Russian"` | 俄语 |
 | `"Thai"` | 泰语 |
 | `"Vietnamese"` | 越南语 |
-| 更多... | 支持 `Chinese`, `English`, `Cantonese`, `Arabic`, `German`, `French`, `Spanish`, `Portuguese`, `Indonesian`, `Italian`, `Korean`, `Russian`, `Thai`, `Vietnamese`, `Japanese`, `Turkish`, `Hindi`, `Malay`, `Dutch`, `Swedish`, `Danish`, `Finnish`, `Polish`, `Czech`, `Filipino`, `Persian`, `Greek`, `Romanian`, `Hungarian`, `Macedonian` |
+| `"Indonesian"` | 印尼语 |
+| `"Turkish"` | 土耳其语 |
+| `"Hindi"` | 印地语 |
+| `"Malay"` | 马来语 |
+| `"Dutch"` | 荷兰语 |
+| `"Swedish"` | 瑞典语 |
+| `"Danish"` | 丹麦语 |
+| `"Finnish"` | 芬兰语 |
+| `"Polish"` | 波兰语 |
+| `"Czech"` | 捷克语 |
+| `"Filipino"` | 菲律宾语 |
+| `"Persian"` | 波斯语 |
+| `"Greek"` | 希腊语 |
+| `"Romanian"` | 罗马尼亚语 |
+| `"Hungarian"` | 匈牙利语 |
+| `"Macedonian"` | 马其顿语 |
 
 > **注意**: 如果不指定 `language` 参数或使用 `"auto"`，模型将自动检测音频语言。
 
