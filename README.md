@@ -56,12 +56,37 @@ Workers: Min 0, Max 5 (根据需求)。
 
 测试 API
 
+```json
 {
   "input": {
-    "audio_url": "[https://example.com/podcast_episode.mp3](https://example.com/podcast_episode.mp3)",
-    "language": "auto" 
+    "audio_url": "https://example.com/podcast_episode.mp3",
+    "language": "auto"
   }
 }
+```
+
+### 语言参数说明
+
+| 参数值 | 说明 |
+|--------|------|
+| `"auto"` 或 `null` | 自动检测语言（推荐） |
+| `"Chinese"` | 中文 |
+| `"English"` | 英文 |
+| `"Cantonese"` | 粤语 |
+| `"Japanese"` | 日语 |
+| `"Korean"` | 韩语 |
+| `"French"` | 法语 |
+| `"German"` | 德语 |
+| `"Spanish"` | 西班牙语 |
+| `"Portuguese"` | 葡萄牙语 |
+| `"Italian"` | 意大利语 |
+| `"Arabic"` | 阿拉伯语 |
+| `"Russian"` | 俄语 |
+| `"Thai"` | 泰语 |
+| `"Vietnamese"` | 越南语 |
+| 更多... | 支持 `Chinese`, `English`, `Cantonese`, `Arabic`, `German`, `French`, `Spanish`, `Portuguese`, `Indonesian`, `Italian`, `Korean`, `Russian`, `Thai`, `Vietnamese`, `Japanese`, `Turkish`, `Hindi`, `Malay`, `Dutch`, `Swedish`, `Danish`, `Finnish`, `Polish`, `Czech`, `Filipino`, `Persian`, `Greek`, `Romanian`, `Hungarian`, `Macedonian` |
+
+> **注意**: 如果不指定 `language` 参数或使用 `"auto"`，模型将自动检测音频语言。
 
 
 注意事项

@@ -54,6 +54,7 @@ def _parse_timestamp_segment(segment, time_offset):
     
     Args:
         segment: 可能是 list [start, end, text] 或 dict {"start": x, "end": y, "text": z}
+                 或 ForcedAlignItem(text=..., start_time=..., end_time=...)
         time_offset: 时间偏移量（秒）
         
     Returns:
@@ -70,6 +71,11 @@ def _parse_timestamp_segment(segment, time_offset):
             start = segment[0]
             end = segment[1]
             text = segment[2] if len(segment) > 2 else ""
+        elif hasattr(segment, 'start_time') and hasattr(segment, 'end_time') and hasattr(segment, 'text'):
+            # ForcedAlignItem 对象格式
+            start = segment.start_time
+            end = segment.end_time
+            text = segment.text
         else:
             # 未知格式，尝试解析
             print(f"⚠️ Warning: Unknown timestamp segment format: {type(segment)} - {repr(segment)}")
@@ -106,7 +112,11 @@ def handler(job):
     """
     job_input = job["input"]
     audio_url = job_input.get("audio_url")
-    language = job_input.get("language", None)  # None 为自动检测
+    language = job_input.get("language", None)
+    
+    # 转换 "auto" 为 None，因为模型不支持 "auto" 字符串，使用 None 表示自动检测
+    if isinstance(language, str) and language.lower() == "auto":
+        language = None
 
     if not audio_url:
         return {"error": "Missing 'audio_url' in input."}
