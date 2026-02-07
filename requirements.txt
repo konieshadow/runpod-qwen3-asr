@@ -6,3 +6,4 @@ requests
 numpy
 scipy
 accelerate
+webrtcvad>=2.0.10
