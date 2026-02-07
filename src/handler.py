@@ -151,15 +151,26 @@ def handler(job):
         for idx, chunk in enumerate(chunks_info):
             chunk_path = chunk["path"]
             time_offset = chunk["start_time_sec"]
+            chunk_duration = chunk['end_time_sec'] - chunk['start_time_sec']
+            
+            # 跳过过短的音频片段（少于0.5秒），避免强制对齐时出错
+            if chunk_duration < 0.5:
+                print(f"  ⏭️ Skipping chunk {idx + 1}/{len(chunks_info)} (too short: {chunk_duration:.2f}s)")
+                continue
             
             print(f"  📝 Processing chunk {idx + 1}/{len(chunks_info)} ({chunk['start_time_sec']:.1f}s - {chunk['end_time_sec']:.1f}s)...")
             
-            # 调用模型转录
-            results = model.transcribe(
-                audio=chunk_path,
-                language=language,
-                return_time_stamps=True
-            )
+            try:
+                # 调用模型转录
+                results = model.transcribe(
+                    audio=chunk_path,
+                    language=language,
+                    return_time_stamps=True
+                )
+            except Exception as e:
+                # 如果转录失败（如空音频导致强制对齐出错），记录警告并跳过该片段
+                print(f"  ⚠️ Warning: Failed to transcribe chunk {idx + 1}: {e}")
+                continue
             
             res = results[0]
             
