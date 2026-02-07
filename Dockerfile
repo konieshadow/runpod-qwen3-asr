@@ -19,8 +19,8 @@ COPY requirements.txt .
 # - Flash Attention 编译时间很长（5-15分钟），会显著增加镜像构建时间
 # - 如果你的 GPU 需要 Flash Attention 来支持更大的 batch，可以取消下面这行的注释
 RUN pip install --upgrade pip && \
-    pip install --ignore-installed blinker && \
-    pip install -r requirements.txt
+    pip install --no-cache-dir --ignore-installed blinker && \
+    pip install --no-cache-dir -r requirements.txt
 # 如果需要 Flash Attention，请取消下面这行的注释：
 # RUN pip install flash-attn --no-build-isolation
 

@@ -29,7 +29,7 @@ jobs:
         with:
           # this might remove tools that are actually needed,
           # if set to "true" but frees about 6 GB
-          tool-cache: false
+          tool-cache: true
           
           # all of these default to true, but feel free to set to
           # "false" if necessary for your workflow
@@ -75,6 +75,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
           build-args: |
             HF_TOKEN=${{ secrets.HF_TOKEN }} 
