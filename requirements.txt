@@ -1,0 +1,8 @@
+runpod>=1.6.0
+qwen-asr[vllm]
+huggingface_hub
+pydub
+requests
+numpy
+scipy
+accelerate

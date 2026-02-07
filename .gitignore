@@ -1,0 +1,45 @@
+Python
+
+pycache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+IDE Settings
+
+.vscode/
+.idea/
+*.swp
+
+Model Weights (防止将巨大的模型文件提交到 git)
+
+models/
+src/models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+Audio Files & Chunks (本地测试时产生的临时文件)
+
+*.mp3
+*.wav
+*.m4a
+*_chunks/
+temp/
+
+Docker
+
+.dockerignore
+
+OS specific
+
+.DS_Store
+Thumbs.db
