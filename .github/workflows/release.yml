@@ -1,0 +1,49 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: Release ${{ steps.tag.outputs.tag }}
+          body: |
+            ## 🚀 新版本发布: ${{ steps.tag.outputs.tag }}
+            
+            ### Docker 镜像
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.tag }}
+            docker pull ghcr.io/${{ github.repository }}:latest
+            ```
+            
+            ### 主要更新
+            - 请查看提交历史了解详细更改
+            
+            ### 使用方法
+            请参考项目 README 和文档了解如何使用此版本。
+            
+            ---
+            
+            **完整更改日志**: https://github.com/${{ github.repository }}/compare/v0.0.0...${{ steps.tag.outputs.tag }}
+          draft: false
+          prerelease: false 
