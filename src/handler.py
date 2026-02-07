@@ -213,8 +213,9 @@ def handler(job):
         # 5. 清理临时文件
         cleanup_files([local_audio_path, chunk_dir])
 
-# 初始化模型
-init_model()
+if __name__ == "__main__":
+    # 初始化模型
+    init_model()
 
-# 启动 Serverless 监听
-runpod.serverless.start({"handler": handler})
+    # 启动 Serverless 监听
+    runpod.serverless.start({"handler": handler})
