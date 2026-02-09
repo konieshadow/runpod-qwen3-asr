@@ -14,8 +14,16 @@ def download_audio(url, save_path, timeout=300):
         save_path: Local save path
         timeout: Download timeout in seconds, default 5 minutes
     """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "audio/*,*/*;q=0.9",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "identity;q=1, *;q=0",
+        "Referer": url,
+    }
+    
     try:
-        response = requests.get(url, stream=True, timeout=timeout)
+        response = requests.get(url, stream=True, timeout=timeout, headers=headers)
         response.raise_for_status()
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
