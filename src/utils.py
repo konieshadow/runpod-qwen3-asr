@@ -6,13 +6,14 @@ import collections
 import contextlib
 from pydub import AudioSegment
 
-def download_audio(url, save_path, timeout=300):
-    """Download audio from URL to local path
-    
+def download_audio(url, save_path, timeout=300, convert_to_wav=True):
+    """Download audio from URL to local path with optional format conversion
+
     Args:
         url: Audio file URL
-        save_path: Local save path
+        save_path: Local save path (if convert_to_wav is True, this should have .wav extension)
         timeout: Download timeout in seconds, default 5 minutes
+        convert_to_wav: Whether to convert downloaded audio to WAV format for better compatibility
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -21,11 +22,14 @@ def download_audio(url, save_path, timeout=300):
         "Accept-Encoding": "identity;q=1, *;q=0",
         "Referer": url,
     }
-    
+
+    # Download to a temporary file first
+    temp_path = save_path + ".tmp"
+
     try:
         response = requests.get(url, stream=True, timeout=timeout, headers=headers)
         response.raise_for_status()
-        with open(save_path, 'wb') as f:
+        with open(temp_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
@@ -33,6 +37,24 @@ def download_audio(url, save_path, timeout=300):
         raise RuntimeError(f"Download timeout after {timeout}s: {url}")
     except Exception as e:
         raise RuntimeError(f"Failed to download audio: {e}")
+
+    # Convert to WAV format if requested
+    if convert_to_wav:
+        try:
+            audio = AudioSegment.from_file(temp_path)
+            # Export as WAV with standard parameters for better compatibility
+            audio.export(save_path, format="wav", parameters=["-ar", "16000", "-ac", "1"])
+        except Exception as e:
+            # If conversion fails, fall back to the original file
+            shutil.move(temp_path, save_path)
+            print(f"⚠️ Warning: Audio conversion failed, using original format: {e}")
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+    else:
+        # Just rename the temp file to final path
+        shutil.move(temp_path, save_path)
 
 class WebRTCVADHelper:
     """WebRTC VAD helper class
