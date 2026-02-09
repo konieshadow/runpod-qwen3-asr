@@ -1,0 +1,12 @@
+{
+    "tests": [
+        {
+            "input": {
+                "audio_url": "https://github.com/runpod-workers/sample-inputs/raw/main/audio/gettysburg.wav",
+                "language": "auto",
+                "initial_context": "",
+                "use_previous_context": true
+            }
+        }
+    ]
+}

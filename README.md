@@ -1,65 +1,60 @@
-Qwen3-ASR Serverless Worker for RunPod
+# Qwen3-ASR Serverless Worker for RunPod
 
-此仓库用于在 RunPod Serverless 上部署 Qwen3-ASR 播客转录服务。它包含自动处理长音频切片、时间戳对齐和 vLLM 加速推理。
+[中文文档](README_zh-CN.md)
 
-特性
+This repository is for deploying the Qwen3-ASR audio transcription service on RunPod Serverless. It includes automatic long audio segmentation, timestamp alignment, and vLLM accelerated inference.
 
-模型: Qwen3-ASR-0.6B (主模型) + Qwen3-ForcedAligner-0.6B (时间戳对齐)。
+[![Runpod](https://api.runpod.io/badge/konieshadow/runpod-qwen3-asr)](https://console.runpod.io/hub/konieshadow/runpod-qwen3-asr)
 
-长音频支持: 自动将长播客切分为 4.5 分钟的片段，规避 ForceAligner 的长度限制，并自动合并时间戳。
+## Features
 
-极速推理: 使用 vLLM 后端。
+- **Models**: Qwen3-ASR-0.6B (main model) + Qwen3-ForcedAligner-0.6B (timestamp alignment).
+- **Long Audio Support**: Intelligently splits long audio using WebRTC VAD (Voice Activity Detection), detecting pauses between speech regions to maintain semantic integrity. Automatically merges timestamps and bypasses ForceAligner length limits.
+- **Ultra-fast Inference**: Uses vLLM backend.
+- **Format**: Accepts URLs for MP3/WAV/M4A and other formats.
 
-格式: 接受 MP3/WAV/M4A 等格式的 URL。
+## Deployment Steps
 
-部署步骤
+### 1. Build Docker Image
 
-1. 构建 Docker 镜像
+You need a Docker Registry (e.g., Docker Hub) to store the image.
 
-你需要一个 Docker Registry (如 Docker Hub) 来存放镜像。
-
-# 登录 Docker Hub
+```bash
+# Login to Docker Hub
 docker login
 
-# 构建镜像 (这一步会下载模型，可能需要较长时间)
+# Build image (this will download models and may take a while)
 docker build -t your-username/qwen3-asr-serverless:v1 .
 
-# 推送镜像
+# Push image
 docker push your-username/qwen3-asr-serverless:v1
+```
 
+### 2. Create Template on RunPod
 
-2. 在 RunPod 上创建 Template
+1. Go to RunPod Console -> Templates.
+2. Click New Template.
+   - **Container Image**: `your-username/qwen3-asr-serverless:v1`
+   - **Container Disk**: Recommended at least 20 GB (models + temporary audio files).
+   - **Environment Variables**: No special variables needed, but you can add `HF_TOKEN` if using private models.
 
-进入 RunPod Console -> Templates.
+### 3. Create Serverless Endpoint
 
-点击 New Template.
+1. Go to Serverless -> New Endpoint.
+2. Select the Template you just created.
+3. **GPU Selection**:
+   - Recommended: 24GB VRAM (NVIDIA L4, RTX 3090, RTX 4090).
+   - The 0.6B model itself is small, but large VRAM is more stable when processing long audio segments and vLLM KV Cache.
+4. **Workers**: Min 0, Max 5 (depending on needs).
 
-Container Image: your-username/qwen3-asr-serverless:v1
+## API Testing
 
-Container Disk: 建议设置至少 20 GB (模型 + 临时音频文件)。
-
-Environment Variables: 不需要特殊变量，但可以添加 HF_TOKEN 如果你使用私有模型。
-
-3. 创建 Serverless Endpoint
-
-进入 Serverless -> New Endpoint.
-
-选择刚才创建的 Template。
-
-GPU 选择:
-
-推荐: 24GB VRAM (NVIDIA L4, RTX 3090, RTX 4090)。
-
-0.6B 模型本身很小，但在处理长音频切片和 vLLM KV Cache 时，大显存更稳定。
-
-Workers: Min 0, Max 5 (根据需求)。
-
-测试 API
+### Request Body
 
 ```json
 {
   "input": {
-    "audio_url": "https://example.com/podcast_episode.mp3",
+    "audio_url": "https://github.com/runpod-workers/sample-inputs/raw/main/audio/gettysburg.wav",
     "language": "auto",
     "initial_context": "",
     "use_previous_context": false
@@ -67,58 +62,99 @@ Workers: Min 0, Max 5 (根据需求)。
 }
 ```
 
-### 语言参数说明
+### Language Parameter
 
-| 参数值 | 说明 |
-|--------|------|
-| `"auto"` 或 `null` | 自动检测语言（推荐） |
-| `"Chinese"` | 中文 |
-| `"English"` | 英文 |
-| `"Cantonese"` | 粤语 |
-| `"Japanese"` | 日语 |
-| `"Korean"` | 韩语 |
-| `"French"` | 法语 |
-| `"German"` | 德语 |
-| `"Spanish"` | 西班牙语 |
-| `"Portuguese"` | 葡萄牙语 |
-| `"Italian"` | 意大利语 |
-| `"Arabic"` | 阿拉伯语 |
-| `"Russian"` | 俄语 |
-| `"Thai"` | 泰语 |
-| `"Vietnamese"` | 越南语 |
-| `"Indonesian"` | 印尼语 |
-| `"Turkish"` | 土耳其语 |
-| `"Hindi"` | 印地语 |
-| `"Malay"` | 马来语 |
-| `"Dutch"` | 荷兰语 |
-| `"Swedish"` | 瑞典语 |
-| `"Danish"` | 丹麦语 |
-| `"Finnish"` | 芬兰语 |
-| `"Polish"` | 波兰语 |
-| `"Czech"` | 捷克语 |
-| `"Filipino"` | 菲律宾语 |
-| `"Persian"` | 波斯语 |
-| `"Greek"` | 希腊语 |
-| `"Romanian"` | 罗马尼亚语 |
-| `"Hungarian"` | 匈牙利语 |
-| `"Macedonian"` | 马其顿语 |
+| Parameter | Description |
+|-----------|-------------|
+| `"auto"` or `null` | Auto-detect language (recommended) |
+| `"Chinese"` | Chinese |
+| `"English"` | English |
+| `"Cantonese"` | Cantonese |
+| `"Japanese"` | Japanese |
+| `"Korean"` | Korean |
+| `"French"` | French |
+| `"German"` | German |
+| `"Spanish"` | Spanish |
+| `"Portuguese"` | Portuguese |
+| `"Italian"` | Italian |
+| `"Arabic"` | Arabic |
+| `"Russian"` | Russian |
+| `"Thai"` | Thai |
+| `"Vietnamese"` | Vietnamese |
+| `"Indonesian"` | Indonesian |
+| `"Turkish"` | Turkish |
+| `"Hindi"` | Hindi |
+| `"Malay"` | Malay |
+| `"Dutch"` | Dutch |
+| `"Swedish"` | Swedish |
+| `"Danish"` | Danish |
+| `"Finnish"` | Finnish |
+| `"Polish"` | Polish |
+| `"Czech"` | Czech |
+| `"Filipino"` | Filipino |
+| `"Persian"` | Persian |
+| `"Greek"` | Greek |
+| `"Romanian"` | Romanian |
+| `"Hungarian"` | Hungarian |
+| `"Macedonian"` | Macedonian |
 
-### 上下文参数说明
+### Context Parameters
 
-| 参数名 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `initial_context` | string | `null` | 初始上下文文本，用于第一个音频片段的转录 |
-| `use_previous_context` | boolean | `false` | 是否开启上下文传递模式。开启后，上一个 chunk 的转录结果会自动作为下一个 chunk 的上下文 |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `initial_context` | string | `null` | Initial context text for the first audio segment transcription |
+| `use_previous_context` | boolean | `false` | Enable context passing mode. When enabled, the previous chunk's transcription result is automatically used as context for the next chunk |
 
-**上下文功能说明：**
-- `initial_context`: 在转录第一个音频片段前提供前置文本，帮助模型理解上下文，提高转录准确性。
-- `use_previous_context`: 对于长音频切分后的连续转录，开启此选项可以将上一个片段的转录结果（最后 200 字符）传递给下一个片段，保持上下文的连贯性。
+**Context Feature Description:**
+- `initial_context`: Provides pre-text before transcribing the first audio segment, helping the model understand context and improve transcription accuracy.
+- `use_previous_context`: For continuous transcription of long audio segments, enabling this option passes the previous segment's transcription result (last 200 characters) to the next segment, maintaining context coherence.
 
-> **注意**: 如果不指定 `language` 参数或使用 `"auto"`，模型将自动检测音频语言。
+> **Note**: If `language` parameter is not specified or set to `"auto"`, the model will automatically detect the audio language.
 
+### Response Format
 
-注意事项
+```json
+{
+  "delayTime": 109075,
+  "executionTime": 62528,
+  "id": "b015cf6d-0ea7-4006-9d12-a87c5aee576d-e2",
+  "output": {
+    "language_detected": "English",
+    "segments": [
+      {
+        "end": 0.48,
+        "start": 0.24,
+        "text": "This"
+      },
+      {
+        "end": 0.56,
+        "start": 0.48,
+        "text": "is"
+      }
+    ],
+    "text": "This is Space Time Series 29 Episode 12..."
+  },
+  "status": "COMPLETED"
+}
+```
 
-模型切换: 默认配置为 0.6B 模型。如果需要使用 1.7B 模型以获得更好的准确率，请修改 builder/fetch_models.py 和 src/handler.py 中的 MODEL_NAME 变量，并重新构建镜像。
+**Response Field Description:**
 
-冷启动: 第一次请求可能需要 15-30 秒来加载模型到显存。之后在 Warm 状态下的请求将立即处理。
+| Field | Type | Description |
+|-------|------|-------------|
+| `delayTime` | number | Request delay time (milliseconds) |
+| `executionTime` | number | Actual execution time (milliseconds) |
+| `id` | string | Request unique identifier |
+| `status` | string | Request status (`COMPLETED`, `FAILED`, etc.) |
+| `output` | object | Transcription result |
+| `output.language_detected` | string | Automatically detected language |
+| `output.text` | string | Full transcription text |
+| `output.segments` | array | Timestamped text segments |
+| `output.segments[].start` | number | Segment start time (seconds) |
+| `output.segments[].end` | number | Segment end time (seconds) |
+| `output.segments[].text` | string | Segment text content |
+
+## Notes
+
+- **Model Switching**: Default configuration uses 0.6B model. If you need better accuracy with the 1.7B model, modify the `MODEL_NAME` variable in `builder/fetch_models.py` and `src/handler.py`, then rebuild the image.
+- **Cold Start**: First request may take 15-30 seconds to load models into VRAM. Subsequent requests in Warm state will process immediately.

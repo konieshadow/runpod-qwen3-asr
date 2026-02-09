@@ -1,0 +1,19 @@
+{
+  "title": "Qwen3-ASR",
+  "description": "Qwen3-ASR Serverless Worker for RunPod",
+  "type": "serverless",
+  "category": "audio",
+  "iconUrl": "https://camo.githubusercontent.com/76befed6da044a1969b7f94d7ae1a6c9b0897f6759ec90c45977e40dd584eb13/68747470733a2f2f7169616e77656e2d7265732e6f73732d636e2d6265696a696e672e616c6979756e63732e636f6d2f5177656e332d4153522d5265706f2f6c6f676f2e706e67",
+  "config": {
+    "runsOn": "GPU",
+    "containerDiskInGb": 20,
+    "gpuIds": "ADA_24",
+    "gpuCount": 1,
+    "allowedCudaVersions": [
+      "12.7",
+      "12.6",
+      "12.5",
+      "12.4"
+    ]
+  }
+}
