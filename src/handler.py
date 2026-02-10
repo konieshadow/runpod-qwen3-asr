@@ -8,9 +8,12 @@ from utils import download_audio, split_audio_smart, cleanup_files
 # Can be modified to "Qwen/Qwen3-ASR-1.7B" as needed
 MODEL_NAME = "Qwen/Qwen3-ASR-0.6B" 
 ALIGNER_NAME = "Qwen/Qwen3-ForcedAligner-0.6B"
-# Model download directory (consistent with Dockerfile)
-MODEL_DIR = "/models/asr"
-ALIGNER_DIR = "/models/aligner"
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 确保这里的路径与 fetch_models.py 中的一致
+MODEL_DIR = os.path.join(BASE_DIR, "models", "asr")
+ALIGNER_DIR = os.path.join(BASE_DIR, "models", "aligner")
 
 # Global variable to cache model
 model = None

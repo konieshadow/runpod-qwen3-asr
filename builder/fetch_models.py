@@ -1,9 +1,12 @@
 import os
 from huggingface_hub import snapshot_download
 
-# Define model save paths (must be consistent with Dockerfile and handler.py)
-ASR_MODEL_DIR = "/models/asr"
-ALIGNER_MODEL_DIR = "/models/aligner"
+# 获取当前脚本的上级目录的上级目录 (即项目根目录)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 修改为项目目录下的 models 文件夹
+ASR_MODEL_DIR = os.path.join(BASE_DIR, "models", "asr")
+ALIGNER_MODEL_DIR = os.path.join(BASE_DIR, "models", "aligner")
 
 # Define HuggingFace model IDs
 # If you want to use 1.7B, change this to "Qwen/Qwen3-ASR-1.7B"
