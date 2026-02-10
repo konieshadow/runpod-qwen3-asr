@@ -14,6 +14,9 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
         save_path: Local save path (if convert_to_wav is True, this should have .wav extension)
         timeout: Download timeout in seconds, default 5 minutes
         convert_to_wav: Whether to convert downloaded audio to WAV format for better compatibility
+
+    Returns:
+        Dict: Audio file info containing file_size, duration_sec, sample_rate, channels, bit_depth
     """
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -38,10 +41,44 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     except Exception as e:
         raise RuntimeError(f"Failed to download audio: {e}")
 
+    # Validate file size
+    file_size = os.path.getsize(temp_path)
+    if file_size == 0:
+        os.remove(temp_path)
+        raise RuntimeError("Downloaded audio file is empty (0 bytes)")
+
+    # Load and validate audio format
+    try:
+        audio = AudioSegment.from_file(temp_path)
+    except Exception as e:
+        os.remove(temp_path)
+        raise RuntimeError(f"Failed to parse audio file: {e}")
+
+    duration_sec = len(audio) / 1000.0
+    sample_rate = audio.frame_rate
+    channels = audio.channels
+    bit_depth = audio.sample_width * 8
+
+    # Validate audio duration
+    if duration_sec < 0.1:
+        os.remove(temp_path)
+        raise RuntimeError(f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)")
+
+    if duration_sec > 3600 * 4:  # 4 hours
+        os.remove(temp_path)
+        raise RuntimeError(f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)")
+
+    # Print audio info
+    print("📊 Audio file info:")
+    print(f"  📁 File size: {file_size / 1024 / 1024:.2f} MB ({file_size} bytes)")
+    print(f"  ⏱️  Duration: {duration_sec:.2f} seconds ({duration_sec / 60:.2f} minutes)")
+    print(f"  🔊 Sample rate: {sample_rate} Hz")
+    print(f"  🎚️  Channels: {channels} ({'mono' if channels == 1 else 'stereo'})")
+    print(f"  🎵 Bit depth: {bit_depth} bits")
+
     # Convert to WAV format if requested
     if convert_to_wav:
         try:
-            audio = AudioSegment.from_file(temp_path)
             # Export as WAV with standard parameters for better compatibility
             audio.export(save_path, format="wav", parameters=["-ar", "16000", "-ac", "1"])
         except Exception as e:
@@ -55,6 +92,15 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     else:
         # Just rename the temp file to final path
         shutil.move(temp_path, save_path)
+
+    # Return audio info for caller to use
+    return {
+        "file_size": file_size,
+        "duration_sec": duration_sec,
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "bit_depth": bit_depth
+    }
 
 class WebRTCVADHelper:
     """WebRTC VAD helper class

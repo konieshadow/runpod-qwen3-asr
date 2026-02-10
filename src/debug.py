@@ -10,7 +10,7 @@ from handler import handler, init_model
 # 模拟输入数据 (参考 tests.json)
 test_event = {
     "input": {
-        "audio_url": "https://github.com/runpod-workers/sample-inputs/raw/main/audio/gettysburg.wav",
+        "audio_url": "http://alioss.gcores.com/uploads/audio/d72b2f75-8b21-46b9-903a-88cefee5dd65.mp3",
         "language": "auto",
         "initial_context": "",
         "use_previous_context": True
@@ -19,9 +19,6 @@ test_event = {
 }
 
 if __name__ == "__main__":
-    print("正在初始化模型...")
-    init_model() # 手动初始化
-    
     print("开始处理音频...")
     result = handler(test_event)
     

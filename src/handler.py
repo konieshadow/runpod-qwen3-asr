@@ -1,7 +1,6 @@
 import runpod
 import torch
 import os
-from qwen_asr import Qwen3ASRModel
 from utils import download_audio, split_audio_smart, cleanup_files
 
 # --- Configuration ---
@@ -22,6 +21,7 @@ def init_model():
     global model
     if model is None:
         print("🚀 Loading Qwen3-ASR Model with vLLM backend...")
+        from qwen_asr import Qwen3ASRModel
         try:
             # Load using vLLM backend for GPU acceleration
             model = Qwen3ASRModel.LLM(
@@ -132,47 +132,13 @@ def handler(job):
     chunk_dir = f"/tmp/{safe_job_id}_chunks"
     
     try:
-        # 2. Download audio (with timeout)
+        # 2. Download and validate audio (with timeout)
+        # Audio info is printed inside download_audio function
         print(f"⬇️ Downloading audio from {audio_url}...")
         download_audio(audio_url, local_audio_path, timeout=300)
 
-        # 2.5 Print file info and validate audio file
-        print("📊 Checking audio file info...")
-        try:
-            from pydub import AudioSegment
-            import os
-
-            # Get file size
-            file_size = os.path.getsize(local_audio_path)
-            print(f"  📁 File size: {file_size / 1024 / 1024:.2f} MB ({file_size} bytes)")
-
-            # Load and check audio info
-            audio = AudioSegment.from_file(local_audio_path)
-            duration_sec = len(audio) / 1000.0
-            sample_rate = audio.frame_rate
-            channels = audio.channels
-            bit_depth = audio.sample_width * 8
-
-            print(f"  ⏱️  Duration: {duration_sec:.2f} seconds ({duration_sec / 60:.2f} minutes)")
-            print(f"  🔊 Sample rate: {sample_rate} Hz")
-            print(f"  🎚️  Channels: {channels} ({'mono' if channels == 1 else 'stereo'})")
-            print(f"  🎵 Bit depth: {bit_depth} bits")
-
-            # Basic validation
-            if file_size == 0:
-                raise ValueError("Downloaded audio file is empty (0 bytes)")
-
-            if duration_sec < 0.1:
-                raise ValueError(f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)")
-
-            if duration_sec > 3600 * 4:  # 4 hours
-                raise ValueError(f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)")
-
-            print("✅ Audio file validation passed")
-
-        except Exception as e:
-            print(f"❌ Audio file validation failed: {e}")
-            raise RuntimeError(f"Audio file validation failed: {e}")
+        # Initialize model after successful download and validation to fail fast
+        init_model()
 
         # 3. Split audio intelligently using VAD
         print("✂️ Splitting audio into chunks using VAD...")
@@ -284,13 +250,22 @@ def handler(job):
         error_type = type(e).__name__
         
         # Return user-friendly messages based on error type
-        if "Download timeout" in str(e):
+        error_str = str(e)
+        if "Download timeout" in error_str:
             user_message = "Audio download timed out. Please check the URL and try again."
-        elif "Failed to download" in str(e):
+        elif "Failed to download" in error_str:
             user_message = "Failed to download audio from the provided URL."
-        elif "CUDA" in str(e) or "cuda" in str(e):
+        elif "empty (0 bytes)" in error_str:
+            user_message = "Downloaded audio file is empty. The URL may be invalid or the file has been removed."
+        elif "Failed to parse audio" in error_str:
+            user_message = "The audio file format is not supported or the file is corrupted."
+        elif "duration too short" in error_str:
+            user_message = "Audio duration is too short. Minimum supported duration is 0.1 seconds."
+        elif "duration too long" in error_str:
+            user_message = "Audio duration exceeds the maximum limit of 4 hours. Please use a shorter audio file."
+        elif "CUDA" in error_str or "cuda" in error_str:
             user_message = "GPU processing error. The service may be temporarily overloaded."
-        elif "OutOfMemory" in error_type or "No memory" in str(e):
+        elif "OutOfMemory" in error_type or "No memory" in error_str:
             user_message = "Audio too long or complex to process. Please try a shorter audio file."
         else:
             # Generic error, don't expose internal details
@@ -307,8 +282,5 @@ def handler(job):
         cleanup_files([local_audio_path, chunk_dir])
 
 if __name__ == "__main__":
-    # 初始化模型
-    init_model()
-
     # 启动 Serverless 监听
     runpod.serverless.start({"handler": handler})
