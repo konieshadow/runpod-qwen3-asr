@@ -4,6 +4,7 @@ import shutil
 import webrtcvad
 import collections
 import contextlib
+import time
 from pydub import AudioSegment
 
 def download_audio(url, save_path, timeout=300, convert_to_wav=True):
@@ -18,24 +19,65 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     Returns:
         Dict: Audio file info containing file_size, duration_sec, sample_rate, channels, bit_depth
     """
+    # 创建一个干净的 session，不继承默认 headers
+    session = requests.Session()
+    session.headers.clear()
+    
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "audio/*,*/*;q=0.9",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "identity;q=1, *;q=0",
-        "Referer": url,
     }
 
     # Download to a temporary file first
     temp_path = save_path + ".tmp"
 
     try:
-        response = requests.get(url, stream=True, timeout=timeout, headers=headers)
+        response = session.get(url, stream=True, timeout=timeout, headers=headers, allow_redirects=True)
         response.raise_for_status()
+        
+        # 获取文件总大小（如果服务器提供）
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        chunk_size = 262144  # 256KB chunks for better performance
+        start_time = time.time()
+        last_print_time = start_time
+        chunk_count = 0
+        
         with open(temp_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=chunk_size):
                 if chunk:
                     f.write(chunk)
+                    downloaded += len(chunk)
+                    chunk_count += 1
+                    
+                    # 每3秒打印一次进度
+                    current_time = time.time()
+                    if current_time - last_print_time >= 3:
+                        elapsed = current_time - start_time
+                        speed = downloaded / elapsed if elapsed > 0 else 0
+                        
+                        if total_size > 0:
+                            percent = (downloaded / total_size) * 100
+                            remaining = total_size - downloaded
+                            eta_seconds = remaining / speed if speed > 0 else 0
+                            print(f"  ⬇️  Downloaded: {percent:.1f}% ({downloaded/1024/1024:.1f}/{total_size/1024/1024:.1f} MB) - Speed: {speed/1024/1024:.1f} MB/s - ETA: {eta_seconds:.0f}s")
+                        else:
+                            print(f"  ⬇️  Downloaded: {downloaded/1024/1024:.1f} MB - Speed: {speed/1024/1024:.1f} MB/s")
+                        
+                        last_print_time = current_time
+        
+        # 打印最终统计
+        elapsed = time.time() - start_time
+        speed = downloaded / elapsed if elapsed > 0 else 0
+        print(f"  ✅ Download complete: {downloaded/1024/1024:.2f} MB ({chunk_count} chunks) in {elapsed:.1f}s ({speed/1024/1024:.1f} MB/s)")
+        
+        # 如果下载了0字节，打印更多调试信息
+        if downloaded == 0:
+            print(f"  ⚠️  Warning: No data received. Response headers:")
+            for key, value in response.headers.items():
+                print(f"     {key}: {value}")
+        
     except requests.Timeout:
         raise RuntimeError(f"Download timeout after {timeout}s: {url}")
     except Exception as e:
