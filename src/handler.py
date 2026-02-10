@@ -136,6 +136,44 @@ def handler(job):
         print(f"⬇️ Downloading audio from {audio_url}...")
         download_audio(audio_url, local_audio_path, timeout=300)
 
+        # 2.5 Print file info and validate audio file
+        print("📊 Checking audio file info...")
+        try:
+            from pydub import AudioSegment
+            import os
+
+            # Get file size
+            file_size = os.path.getsize(local_audio_path)
+            print(f"  📁 File size: {file_size / 1024 / 1024:.2f} MB ({file_size} bytes)")
+
+            # Load and check audio info
+            audio = AudioSegment.from_file(local_audio_path)
+            duration_sec = len(audio) / 1000.0
+            sample_rate = audio.frame_rate
+            channels = audio.channels
+            bit_depth = audio.sample_width * 8
+
+            print(f"  ⏱️  Duration: {duration_sec:.2f} seconds ({duration_sec / 60:.2f} minutes)")
+            print(f"  🔊 Sample rate: {sample_rate} Hz")
+            print(f"  🎚️  Channels: {channels} ({'mono' if channels == 1 else 'stereo'})")
+            print(f"  🎵 Bit depth: {bit_depth} bits")
+
+            # Basic validation
+            if file_size == 0:
+                raise ValueError("Downloaded audio file is empty (0 bytes)")
+
+            if duration_sec < 0.1:
+                raise ValueError(f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)")
+
+            if duration_sec > 3600 * 4:  # 4 hours
+                raise ValueError(f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)")
+
+            print("✅ Audio file validation passed")
+
+        except Exception as e:
+            print(f"❌ Audio file validation failed: {e}")
+            raise RuntimeError(f"Audio file validation failed: {e}")
+
         # 3. Split audio intelligently using VAD
         print("✂️ Splitting audio into chunks using VAD...")
         chunks_info = split_audio_smart(
