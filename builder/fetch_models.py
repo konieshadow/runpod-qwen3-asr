@@ -1,8 +1,8 @@
 from huggingface_hub import snapshot_download
 
 # Model download directory (consistent with Dockerfile)
-MODEL_DIR = "/models/asr"
-ALIGNER_DIR = "/models/aligner"
+ASR_MODEL_DIR = "/models/asr"
+ALIGNER_MODEL_DIR = "/models/aligner"
 
 # Define HuggingFace model IDs
 # If you want to use 1.7B, change this to "Qwen/Qwen3-ASR-1.7B"
