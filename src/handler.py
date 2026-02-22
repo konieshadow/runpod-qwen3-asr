@@ -116,6 +116,15 @@ def handler(job):
     initial_context = job_input.get("initial_context", None)
     use_previous_context = job_input.get("use_previous_context", False)
 
+    # Validate language parameter
+    VALID_LANGUAGES = ['Chinese', 'English', 'Cantonese', 'Arabic', 'German', 'French', 'Spanish', 'Portuguese', 'Indonesian', 'Italian', 'Korean', 'Russian', 'Thai', 'Vietnamese', 'Japanese', 'Turkish', 'Hindi', 'Malay', 'Dutch', 'Swedish', 'Danish', 'Finnish', 'Polish', 'Czech', 'Filipino', 'Persian', 'Greek', 'Romanian', 'Hungarian', 'Macedonian']
+    
+    if language is not None:
+        if isinstance(language, str) and language.lower() == "auto":
+            language = None
+        elif language not in VALID_LANGUAGES:
+            return {"error": f"Invalid language '{language}'. Must be 'auto' or one of: {', '.join(VALID_LANGUAGES)}"}
+
     # Convert "auto" to None because model doesn't support "auto" string, use None for auto-detection
     if isinstance(language, str) and language.lower() == "auto":
         language = None
