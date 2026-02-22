@@ -450,3 +450,103 @@ def cleanup_files(paths):
                 os.remove(path)
         except Exception as e:
             print(f"⚠️ Warning: Failed to cleanup {path}: {e}")
+
+
+def add_punctuation_to_segments(full_text, segments):
+    """
+    Add punctuation to word-level segments by aligning with the full text.
+    
+    The ASR model returns word-level segments without punctuation in the 'text' field,
+    but the full transcript (full_text) contains proper punctuation. This function
+    aligns the segments with the full text to restore punctuation.
+    
+    Algorithm: O(n) two-pointer alignment with limited look-ahead for robustness.
+    
+    Args:
+        full_text: The full transcript with punctuation (string)
+        segments: List of segment dicts with 'start', 'end', 'text' (without punctuation)
+    
+    Returns:
+        List of segment dicts with punctuation added to 'text' field
+    """
+    if not segments or not full_text:
+        return segments
+    
+    try:
+        import re
+        
+        # Tokenize full text: split on whitespace, keep punctuation attached to words
+        full_tokens = full_text.split()
+        num_tokens = len(full_tokens)
+        
+        # Pre-compute normalized tokens for efficient matching
+        # Normalization: lowercase + strip punctuation
+        full_tokens_normalized = []
+        for t in full_tokens:
+            norm = re.sub(r'[^\w\s]', '', t).lower().strip()
+            full_tokens_normalized.append(norm)
+        
+        # Build segment words (normalized)
+        segment_words = []
+        for seg in segments:
+            word = re.sub(r'[^\w\s]', '', seg['text']).lower().strip()
+            segment_words.append(word)
+        
+        # Two-pointer alignment with bounded look-ahead
+        segment_idx = 0
+        full_idx = 0
+        num_segments = len(segments)
+        aligned_segments = []
+        
+        # Pre-allocate for better performance
+        MAX_LOOK_AHEAD = 3  # Reduced from 5 for better performance
+        
+        while segment_idx < num_segments and full_idx < num_tokens:
+            seg_word = segment_words[segment_idx]
+            full_token_norm = full_tokens_normalized[full_idx]
+            
+            # Skip empty tokens
+            if not full_token_norm:
+                full_idx += 1
+                continue
+            
+            # Direct match
+            if seg_word == full_token_norm:
+                new_seg = segments[segment_idx].copy()
+                new_seg['text'] = full_tokens[full_idx]
+                aligned_segments.append(new_seg)
+                segment_idx += 1
+                full_idx += 1
+            else:
+                # Look-ahead: find match within small window
+                # This handles minor mismatches (extra words, contractions, etc.)
+                found_offset = 0
+                for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
+                    if full_tokens_normalized[full_idx + offset] == seg_word:
+                        found_offset = offset
+                        break
+                
+                if found_offset > 0:
+                    # Found match ahead, skip tokens
+                    full_idx += found_offset
+                    new_seg = segments[segment_idx].copy()
+                    new_seg['text'] = full_tokens[full_idx]
+                    aligned_segments.append(new_seg)
+                    segment_idx += 1
+                    full_idx += 1
+                else:
+                    # No match found, keep original and advance segment
+                    # This handles words that exist in segments but not in full_text
+                    aligned_segments.append(segments[segment_idx].copy())
+                    segment_idx += 1
+        
+        # Append remaining segments (if any)
+        while segment_idx < num_segments:
+            aligned_segments.append(segments[segment_idx].copy())
+            segment_idx += 1
+        
+        return aligned_segments
+    
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to add punctuation to segments: {e}")
+        return segments

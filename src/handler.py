@@ -1,6 +1,6 @@
 import runpod
 import torch
-from utils import download_audio, split_audio_smart, cleanup_files
+from utils import download_audio, split_audio_smart, cleanup_files, add_punctuation_to_segments
 
 # --- Configuration ---
 # Can be modified to "Qwen/Qwen3-ASR-1.7B" as needed
@@ -235,6 +235,10 @@ def handler(job):
             # Clear KV cache every 3 chunks processed to prevent OOM
             if (idx + 1) % 3 == 0:
                 _clear_kv_cache()
+
+        # Add punctuation to segments by aligning with full_text
+        if full_transcript and full_text.strip():
+            full_transcript = add_punctuation_to_segments(full_text.strip(), full_transcript)
 
         return {
             "status": "success",
