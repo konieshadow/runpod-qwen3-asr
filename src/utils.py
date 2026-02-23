@@ -460,6 +460,9 @@ def add_punctuation_to_segments(full_text, segments, language=None):
     but the full transcript (full_text) contains proper punctuation. This function
     aligns the segments with the full text to restore punctuation.
     
+    For CJK languages (Chinese, Japanese, Korean), punctuation marks are inserted
+    as separate segments with approximated timestamps.
+    
     Algorithm: O(n) two-pointer alignment with limited look-ahead for robustness.
     
     Args:
@@ -476,13 +479,9 @@ def add_punctuation_to_segments(full_text, segments, language=None):
     try:
         import re
         
-        # Tokenize full text based on language
-        # For CJK languages (Chinese, Japanese, Korean), use character-level tokenization
-        # For others, use whitespace-based tokenization
         is_cjk = language and language.lower() in ('chinese', 'japanese', 'korean')
         
         if is_cjk:
-            import re
             full_tokens = list(full_text)
             full_tokens = [t for t in full_tokens if t.strip()]
         else:
@@ -490,8 +489,6 @@ def add_punctuation_to_segments(full_text, segments, language=None):
         
         num_tokens = len(full_tokens)
         
-        # Pre-compute normalized tokens for efficient matching
-        # For CJK, keep original characters; for others, lowercase + strip punctuation
         full_tokens_normalized = []
         if is_cjk:
             for t in full_tokens:
@@ -501,7 +498,6 @@ def add_punctuation_to_segments(full_text, segments, language=None):
                 norm = re.sub(r'[^\w\s]', '', t).lower().strip()
                 full_tokens_normalized.append(norm)
         
-        # Build segment words (normalized)
         segment_words = []
         for seg in segments:
             if is_cjk:
@@ -510,60 +506,138 @@ def add_punctuation_to_segments(full_text, segments, language=None):
                 word = re.sub(r'[^\w\s]', '', seg['text']).lower().strip()
                 segment_words.append(word)
         
-        # Two-pointer alignment with bounded look-ahead
-        segment_idx = 0
-        full_idx = 0
+        cjk_punctuation = set('，。！？；：""''（）【】《》、·~…—·\'\".,!?;:$%&()*+,-./:;<=>?@[\\]^_`{|}~\s0123456789')
+        
+        def is_punctuation(char, is_cjk_lang):
+            if is_cjk_lang:
+                return char in cjk_punctuation
+            return not char.strip() or not re.match(r'[\w]', char)
+        
         num_segments = len(segments)
-        aligned_segments = []
         
-        # Pre-allocate for better performance
-        MAX_LOOK_AHEAD = 3  # Reduced from 5 for better performance
-        
-        while segment_idx < num_segments and full_idx < num_tokens:
-            seg_word = segment_words[segment_idx]
-            full_token_norm = full_tokens_normalized[full_idx]
+        if is_cjk:
+            full_to_segment_map = {}
+            segment_idx = 0
+            full_idx = 0
+            MAX_LOOK_AHEAD = 10
             
-            # Skip empty tokens
-            if not full_token_norm:
-                full_idx += 1
-                continue
-            
-            # Direct match
-            if seg_word == full_token_norm:
-                new_seg = segments[segment_idx].copy()
-                new_seg['text'] = full_tokens[full_idx]
-                aligned_segments.append(new_seg)
-                segment_idx += 1
-                full_idx += 1
-            else:
-                # Look-ahead: find match within small window
-                # This handles minor mismatches (extra words, contractions, etc.)
-                found_offset = 0
-                for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
-                    if full_tokens_normalized[full_idx + offset] == seg_word:
-                        found_offset = offset
-                        break
+            while segment_idx < num_segments and full_idx < num_tokens:
+                seg_word = segment_words[segment_idx]
                 
-                if found_offset > 0:
-                    # Found match ahead, skip tokens
-                    full_idx += found_offset
+                while full_idx < num_tokens and is_punctuation(full_tokens[full_idx], is_cjk):
+                    full_idx += 1
+                
+                if full_idx >= num_tokens:
+                    break
+                
+                full_token_norm = full_tokens_normalized[full_idx]
+                
+                if not full_token_norm:
+                    full_idx += 1
+                    continue
+                
+                if seg_word == full_token_norm:
+                    full_to_segment_map[full_idx] = segment_idx
+                    segment_idx += 1
+                    full_idx += 1
+                else:
+                    found = False
+                    for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
+                        look_ahead_idx = full_idx + offset
+                        while look_ahead_idx < num_tokens and is_punctuation(full_tokens[look_ahead_idx], is_cjk):
+                            look_ahead_idx += 1
+                        
+                        if look_ahead_idx < num_tokens and full_tokens_normalized[look_ahead_idx] == seg_word:
+                            for skipped in range(full_idx, look_ahead_idx):
+                                full_to_segment_map[skipped] = -1
+                            full_idx = look_ahead_idx
+                            full_to_segment_map[full_idx] = segment_idx
+                            segment_idx += 1
+                            full_idx += 1
+                            found = True
+                            break
+                    
+                    if not found:
+                        segment_idx += 1
+            
+            aligned_segments = []
+            mapped_segment_indices = set()
+            
+            for full_idx in range(num_tokens):
+                char = full_tokens[full_idx]
+                
+                if is_punctuation(char, is_cjk):
+                    next_seg_idx = None
+                    for fi in range(full_idx + 1, num_tokens):
+                        if fi in full_to_segment_map and full_to_segment_map[fi] >= 0:
+                            next_seg_idx = full_to_segment_map[fi]
+                            break
+                    
+                    if next_seg_idx is not None and next_seg_idx < len(segments):
+                        seg = segments[next_seg_idx]
+                        aligned_segments.append({
+                            'start': seg['start'],
+                            'end': seg['start'] + 0.01,
+                            'text': char
+                        })
+                else:
+                    seg_idx = full_to_segment_map.get(full_idx, -1)
+                    if seg_idx >= 0 and seg_idx < len(segments):
+                        new_seg = segments[seg_idx].copy()
+                        new_seg['text'] = char
+                        aligned_segments.append(new_seg)
+                        mapped_segment_indices.add(seg_idx)
+            
+            for seg_idx in range(len(segments)):
+                if seg_idx not in mapped_segment_indices:
+                    aligned_segments.append(segments[seg_idx].copy())
+            
+            aligned_segments.sort(key=lambda x: x['start'])
+            
+            return aligned_segments
+        else:
+            segment_idx = 0
+            full_idx = 0
+            aligned_segments = []
+            MAX_LOOK_AHEAD = 3
+            
+            while segment_idx < num_segments and full_idx < num_tokens:
+                seg_word = segment_words[segment_idx]
+                full_token_norm = full_tokens_normalized[full_idx]
+                
+                if not full_token_norm:
+                    full_idx += 1
+                    continue
+                
+                if seg_word == full_token_norm:
                     new_seg = segments[segment_idx].copy()
                     new_seg['text'] = full_tokens[full_idx]
                     aligned_segments.append(new_seg)
                     segment_idx += 1
                     full_idx += 1
                 else:
-                    # No match found, keep original and advance segment
-                    # This handles words that exist in segments but not in full_text
-                    aligned_segments.append(segments[segment_idx].copy())
-                    segment_idx += 1
-        
-        # Append remaining segments (if any)
-        while segment_idx < num_segments:
-            aligned_segments.append(segments[segment_idx].copy())
-            segment_idx += 1
-        
-        return aligned_segments
+                    found_offset = 0
+                    for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
+                        if full_tokens_normalized[full_idx + offset] == seg_word:
+                            found_offset = offset
+                            break
+                    
+                    if found_offset > 0:
+                        full_idx += found_offset
+                        new_seg = segments[segment_idx].copy()
+                        new_seg['text'] = full_tokens[full_idx]
+                        aligned_segments.append(new_seg)
+                        segment_idx += 1
+                        full_idx += 1
+                    else:
+                        aligned_segments.append(segments[segment_idx].copy())
+                        segment_idx += 1
+            
+            while segment_idx < num_segments:
+                aligned_segments.append(segments[segment_idx].copy())
+                segment_idx += 1
+            
+            return aligned_segments
     
     except Exception as e:
         print(f"⚠️ Warning: Failed to add punctuation to segments: {e}")
