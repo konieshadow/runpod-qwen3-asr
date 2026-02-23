@@ -238,7 +238,11 @@ def handler(job):
 
         # Add punctuation to segments by aligning with full_text
         if full_transcript and full_text.strip():
-            full_transcript = add_punctuation_to_segments(full_text.strip(), full_transcript)
+            full_transcript = add_punctuation_to_segments(
+                full_text.strip(), 
+                full_transcript,
+                language=last_detected_language
+            )
 
         return {
             "status": "success",

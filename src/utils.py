@@ -452,7 +452,7 @@ def cleanup_files(paths):
             print(f"⚠️ Warning: Failed to cleanup {path}: {e}")
 
 
-def add_punctuation_to_segments(full_text, segments):
+def add_punctuation_to_segments(full_text, segments, language=None):
     """
     Add punctuation to word-level segments by aligning with the full text.
     
@@ -465,6 +465,7 @@ def add_punctuation_to_segments(full_text, segments):
     Args:
         full_text: The full transcript with punctuation (string)
         segments: List of segment dicts with 'start', 'end', 'text' (without punctuation)
+        language: Optional language hint ('Chinese', 'English', etc.) for tokenization strategy
     
     Returns:
         List of segment dicts with punctuation added to 'text' field
@@ -475,22 +476,39 @@ def add_punctuation_to_segments(full_text, segments):
     try:
         import re
         
-        # Tokenize full text: split on whitespace, keep punctuation attached to words
-        full_tokens = full_text.split()
+        # Tokenize full text based on language
+        # For CJK languages (Chinese, Japanese, Korean), use character-level tokenization
+        # For others, use whitespace-based tokenization
+        is_cjk = language and language.lower() in ('chinese', 'japanese', 'korean')
+        
+        if is_cjk:
+            import re
+            full_tokens = list(full_text)
+            full_tokens = [t for t in full_tokens if t.strip()]
+        else:
+            full_tokens = full_text.split()
+        
         num_tokens = len(full_tokens)
         
         # Pre-compute normalized tokens for efficient matching
-        # Normalization: lowercase + strip punctuation
+        # For CJK, keep original characters; for others, lowercase + strip punctuation
         full_tokens_normalized = []
-        for t in full_tokens:
-            norm = re.sub(r'[^\w\s]', '', t).lower().strip()
-            full_tokens_normalized.append(norm)
+        if is_cjk:
+            for t in full_tokens:
+                full_tokens_normalized.append(t)
+        else:
+            for t in full_tokens:
+                norm = re.sub(r'[^\w\s]', '', t).lower().strip()
+                full_tokens_normalized.append(norm)
         
         # Build segment words (normalized)
         segment_words = []
         for seg in segments:
-            word = re.sub(r'[^\w\s]', '', seg['text']).lower().strip()
-            segment_words.append(word)
+            if is_cjk:
+                segment_words.append(seg['text'])
+            else:
+                word = re.sub(r'[^\w\s]', '', seg['text']).lower().strip()
+                segment_words.append(word)
         
         # Two-pointer alignment with bounded look-ahead
         segment_idx = 0
