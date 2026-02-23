@@ -231,6 +231,8 @@ def handler(job):
                 # Take last 200 characters of current chunk text as context for next chunk
                 # This length can be adjusted based on model's maximum supported context length
                 current_context = text.strip()[-200:] if len(text) > 200 else text.strip()
+            else:
+                current_context = None
 
             # Clear KV cache every 3 chunks processed to prevent OOM
             if (idx + 1) % 3 == 0:
