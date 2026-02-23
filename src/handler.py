@@ -158,7 +158,7 @@ def handler(job):
         
         full_transcript = []
         full_text = ""
-        last_detected_language = None
+        detected_languages = []
 
         # Initialize context: use initial_context or None
         current_context = initial_context if initial_context else None
@@ -206,7 +206,7 @@ def handler(job):
             elif isinstance(res, dict) and 'language' in res:
                 language_val = res['language']
             if language_val:
-                last_detected_language = language_val
+                detected_languages.append(language_val)
             
             # Get timestamp data (supports time_stamps or chunks fields)
             timestamps_data = None
@@ -236,6 +236,13 @@ def handler(job):
             if (idx + 1) % 3 == 0:
                 _clear_kv_cache()
 
+        # Determine final detected language: most frequent language across all chunks
+        last_detected_language = None
+        if detected_languages:
+            from collections import Counter
+            language_counts = Counter(detected_languages)
+            last_detected_language = language_counts.most_common(1)[0][0]
+
         # Add punctuation to segments by aligning with full_text
         if full_transcript and full_text.strip():
             full_transcript = add_punctuation_to_segments(
@@ -243,6 +250,11 @@ def handler(job):
                 full_transcript,
                 language=last_detected_language
             )
+
+        # Add language field to each segment
+        if last_detected_language and full_transcript:
+            for segment in full_transcript:
+                segment["language"] = last_detected_language
 
         return {
             "status": "success",
