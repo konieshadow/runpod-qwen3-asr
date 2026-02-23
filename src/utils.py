@@ -568,9 +568,16 @@ def add_punctuation_to_segments(full_text, segments, language=None):
                 
                 if is_punctuation(char, is_cjk):
                     next_seg_idx = None
+                    prev_seg_idx = None
+                    
                     for fi in range(full_idx + 1, num_tokens):
                         if fi in full_to_segment_map and full_to_segment_map[fi] >= 0:
                             next_seg_idx = full_to_segment_map[fi]
+                            break
+                    
+                    for fi in range(full_idx - 1, -1, -1):
+                        if fi in full_to_segment_map and full_to_segment_map[fi] >= 0:
+                            prev_seg_idx = full_to_segment_map[fi]
                             break
                     
                     if next_seg_idx is not None and next_seg_idx < len(segments):
@@ -578,6 +585,13 @@ def add_punctuation_to_segments(full_text, segments, language=None):
                         aligned_segments.append({
                             'start': seg['start'],
                             'end': seg['start'] + 0.01,
+                            'text': char
+                        })
+                    elif prev_seg_idx is not None and prev_seg_idx < len(segments):
+                        seg = segments[prev_seg_idx]
+                        aligned_segments.append({
+                            'start': seg['end'],
+                            'end': seg['end'] + 0.01,
                             'text': char
                         })
                 else:
