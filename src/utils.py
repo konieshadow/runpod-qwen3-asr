@@ -7,6 +7,7 @@ import contextlib
 import time
 from pydub import AudioSegment
 
+
 def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     """Download audio from URL to local path with optional format conversion
 
@@ -22,7 +23,8 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     # 创建一个干净的 session，不继承默认 headers
     session = requests.Session()
     session.headers.clear()
-    
+    session.max_redirects = 60
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "audio/*,*/*;q=0.9",
@@ -33,51 +35,59 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     temp_path = save_path + ".tmp"
 
     try:
-        response = session.get(url, stream=True, timeout=timeout, headers=headers, allow_redirects=True)
+        response = session.get(
+            url, stream=True, timeout=timeout, headers=headers, allow_redirects=True
+        )
         response.raise_for_status()
-        
+
         # 获取文件总大小（如果服务器提供）
-        total_size = int(response.headers.get('content-length', 0))
+        total_size = int(response.headers.get("content-length", 0))
         downloaded = 0
         chunk_size = 262144  # 256KB chunks for better performance
         start_time = time.time()
         last_print_time = start_time
         chunk_count = 0
-        
-        with open(temp_path, 'wb') as f:
+
+        with open(temp_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=chunk_size):
                 if chunk:
                     f.write(chunk)
                     downloaded += len(chunk)
                     chunk_count += 1
-                    
+
                     # 每3秒打印一次进度
                     current_time = time.time()
                     if current_time - last_print_time >= 3:
                         elapsed = current_time - start_time
                         speed = downloaded / elapsed if elapsed > 0 else 0
-                        
+
                         if total_size > 0:
                             percent = (downloaded / total_size) * 100
                             remaining = total_size - downloaded
                             eta_seconds = remaining / speed if speed > 0 else 0
-                            print(f"  ⬇️  Downloaded: {percent:.1f}% ({downloaded/1024/1024:.1f}/{total_size/1024/1024:.1f} MB) - Speed: {speed/1024/1024:.1f} MB/s - ETA: {eta_seconds:.0f}s")
+                            print(
+                                f"  ⬇️  Downloaded: {percent:.1f}% ({downloaded / 1024 / 1024:.1f}/{total_size / 1024 / 1024:.1f} MB) - Speed: {speed / 1024 / 1024:.1f} MB/s - ETA: {eta_seconds:.0f}s"
+                            )
                         else:
-                            print(f"  ⬇️  Downloaded: {downloaded/1024/1024:.1f} MB - Speed: {speed/1024/1024:.1f} MB/s")
-                        
+                            print(
+                                f"  ⬇️  Downloaded: {downloaded / 1024 / 1024:.1f} MB - Speed: {speed / 1024 / 1024:.1f} MB/s"
+                            )
+
                         last_print_time = current_time
-        
+
         # 打印最终统计
         elapsed = time.time() - start_time
         speed = downloaded / elapsed if elapsed > 0 else 0
-        print(f"  ✅ Download complete: {downloaded/1024/1024:.2f} MB ({chunk_count} chunks) in {elapsed:.1f}s ({speed/1024/1024:.1f} MB/s)")
-        
+        print(
+            f"  ✅ Download complete: {downloaded / 1024 / 1024:.2f} MB ({chunk_count} chunks) in {elapsed:.1f}s ({speed / 1024 / 1024:.1f} MB/s)"
+        )
+
         # 如果下载了0字节，打印更多调试信息
         if downloaded == 0:
             print(f"  ⚠️  Warning: No data received. Response headers:")
             for key, value in response.headers.items():
                 print(f"     {key}: {value}")
-        
+
     except requests.Timeout:
         raise RuntimeError(f"Download timeout after {timeout}s: {url}")
     except Exception as e:
@@ -104,16 +114,22 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     # Validate audio duration
     if duration_sec < 0.1:
         os.remove(temp_path)
-        raise RuntimeError(f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)")
+        raise RuntimeError(
+            f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)"
+        )
 
     if duration_sec > 3600 * 4:  # 4 hours
         os.remove(temp_path)
-        raise RuntimeError(f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)")
+        raise RuntimeError(
+            f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)"
+        )
 
     # Print audio info
     print("📊 Audio file info:")
     print(f"  📁 File size: {file_size / 1024 / 1024:.2f} MB ({file_size} bytes)")
-    print(f"  ⏱️  Duration: {duration_sec:.2f} seconds ({duration_sec / 60:.2f} minutes)")
+    print(
+        f"  ⏱️  Duration: {duration_sec:.2f} seconds ({duration_sec / 60:.2f} minutes)"
+    )
     print(f"  🔊 Sample rate: {sample_rate} Hz")
     print(f"  🎚️  Channels: {channels} ({'mono' if channels == 1 else 'stereo'})")
     print(f"  🎵 Bit depth: {bit_depth} bits")
@@ -122,7 +138,9 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     if convert_to_wav:
         try:
             # Export as WAV with standard parameters for better compatibility
-            audio.export(save_path, format="wav", parameters=["-ar", "16000", "-ac", "1"])
+            audio.export(
+                save_path, format="wav", parameters=["-ar", "16000", "-ac", "1"]
+            )
         except Exception as e:
             # If conversion fails, fall back to the original file
             shutil.move(temp_path, save_path)
@@ -141,22 +159,23 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
         "duration_sec": duration_sec,
         "sample_rate": sample_rate,
         "channels": channels,
-        "bit_depth": bit_depth
+        "bit_depth": bit_depth,
     }
+
 
 class WebRTCVADHelper:
     """WebRTC VAD helper class
-    
+
     Note: WebRTC VAD only supports 8kHz, 16kHz, 32kHz sample rates.
     For original audio with sample rate higher than 32kHz (e.g., 48kHz), resampling to 16kHz
     will lose high-frequency information above 8kHz. This may affect VAD detection of
     high-frequency consonants, but usually has little impact for podcast speech scenarios.
-    
+
     To preserve high-frequency information, consider:
     1. Use Silero VAD (supports any sample rate)
     2. Downsample audio to 16kHz for VAD, but keep original audio for ASR
     """
-    
+
     def __init__(self, aggressiveness=2):
         """
         Args:
@@ -165,42 +184,48 @@ class WebRTCVADHelper:
         self.vad = webrtcvad.Vad(aggressiveness)
         self.sample_rate = 16000  # WebRTC VAD only supports 8k, 16k, 32k
         self.frame_duration = 30  # ms, options: 10, 20, 30
-        
+
     def _read_frames(self, audio_data):
         """Split audio data into VAD frames"""
-        frame_size = int(self.sample_rate * self.frame_duration / 1000) * 2  # 16-bit = 2 bytes
+        frame_size = (
+            int(self.sample_rate * self.frame_duration / 1000) * 2
+        )  # 16-bit = 2 bytes
         offset = 0
         while offset + frame_size <= len(audio_data):
-            yield audio_data[offset:offset + frame_size]
+            yield audio_data[offset : offset + frame_size]
             offset += frame_size
-            
+
     def detect_speech_regions(self, audio_segment):
         """
         Detect speech regions in audio
-        
+
         Args:
             audio_segment: pydub AudioSegment (any sample rate, will be resampled to 16kHz)
-            
+
         Returns:
             List[Tuple[int, int]]: List of speech regions [(start_ms, end_ms), ...], timestamps correspond to original audio
         """
         # Record original audio frame rate for timestamp conversion
         original_frame_rate = audio_segment.frame_rate
-        
+
         # Convert to 16kHz mono PCM for VAD
         # Note: For audio higher than 16kHz, this will lose high-frequency information
-        audio = audio_segment.set_frame_rate(self.sample_rate).set_channels(1).set_sample_width(2)
+        audio = (
+            audio_segment.set_frame_rate(self.sample_rate)
+            .set_channels(1)
+            .set_sample_width(2)
+        )
         raw_data = audio.raw_data
-        
+
         # Frame-by-frame detection
         regions = []
         current_region_start = None
         frame_idx = 0
-        
+
         for frame in self._read_frames(raw_data):
             is_speech = self.vad.is_speech(frame, self.sample_rate)
             timestamp_ms = frame_idx * self.frame_duration
-            
+
             if is_speech and current_region_start is None:
                 # Speech start
                 current_region_start = timestamp_ms
@@ -208,85 +233,88 @@ class WebRTCVADHelper:
                 # Speech end
                 regions.append((current_region_start, timestamp_ms))
                 current_region_start = None
-                
+
             frame_idx += 1
-        
+
         # Handle the last region (if still speaking at the end of audio)
         if current_region_start is not None:
             regions.append((current_region_start, frame_idx * self.frame_duration))
-            
+
         return regions
 
 
 def _find_best_split_in_range(silence_regions, start_ms, end_ms, target_ms):
     """
     Find the best split point within the specified range
-    
+
     Prioritize splitting at the pause closest to target_ms to maintain semantic integrity
-    
+
     Args:
         silence_regions: List of all silence regions [(start, end), ...]
         start_ms: Start position of current segment
         end_ms: End position of current segment (maximum position that cannot be exceeded)
         target_ms: Ideal split position (usually start_ms + max_chunk_ms)
-        
+
     Returns:
         int: Best split point position (milliseconds)
     """
     # Filter silences within current range
     valid_silences = [
-        (s, e) for s, e in silence_regions
-        if s >= start_ms and e <= end_ms and s > start_ms  # Pause must be within current range and not at start
+        (s, e)
+        for s, e in silence_regions
+        if s >= start_ms
+        and e <= end_ms
+        and s > start_ms  # Pause must be within current range and not at start
     ]
-    
+
     if not valid_silences:
         # No suitable pause, forced to split at maximum length
         return min(start_ms + 270000, end_ms)
-    
+
     # Find the pause midpoint closest to target
     best_split = None
-    best_distance = float('inf')
-    
+    best_distance = float("inf")
+
     for s, e in valid_silences:
         # Use the midpoint of the pause as the split point
         midpoint = (s + e) // 2
         distance = abs(midpoint - target_ms)
-        
+
         if distance < best_distance:
             best_distance = distance
             best_split = midpoint
-    
+
     return best_split if best_split is not None else min(start_ms + 270000, end_ms)
 
 
 def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
     """
     Find split points based on VAD (Voice Activity Detection)
-    
+
     Strategy:
     1. Use VAD to detect speech regions
     2. Prioritize splitting at pauses between speech regions to maintain semantic integrity
     3. If current segment exceeds max_chunk_ms, force split at the nearest suitable pause
     4. Only split mid-sentence when no suitable pause exists
-    
+
     Args:
         audio_segment: pydub AudioSegment
         max_chunk_ms: Maximum segment length (milliseconds)
         min_silence_ms: Minimum silence length (milliseconds), pauses below this value are not considered split points
-        
+
     Returns:
         List[int]: List of split points (milliseconds), including start 0 and end duration
     """
     duration_ms = len(audio_segment)
-    
+
     # Audio too short, no need to split
     if duration_ms <= max_chunk_ms:
         return [0, duration_ms]
-    
+
     # Use VAD to detect speech regions
     vad_helper = WebRTCVADHelper(aggressiveness=2)
     speech_regions = vad_helper.detect_speech_regions(audio_segment)
-    
+
     # If no speech detected, treat entire audio as one segment (but limited by max length)
     if not speech_regions:
         if duration_ms <= max_chunk_ms:
@@ -300,61 +328,65 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
         if split_points[-1] != duration_ms:
             split_points.append(duration_ms)
         return split_points
-    
+
     # Derive silence regions from speech regions
     silence_regions = []
-    
+
     # Silence at the beginning
     if speech_regions[0][0] > 0:
         silence_regions.append((0, speech_regions[0][0]))
-    
+
     # Silence between speech regions
     for i in range(len(speech_regions) - 1):
         silence_start = speech_regions[i][1]
         silence_end = speech_regions[i + 1][0]
         if silence_end > silence_start:
             silence_regions.append((silence_start, silence_end))
-    
+
     # Silence at the end
     if speech_regions[-1][1] < duration_ms:
         silence_regions.append((speech_regions[-1][1], duration_ms))
-    
+
     # Filter silence regions that meet minimum silence length
     valid_silences = [
-        (start, end) for start, end in silence_regions 
+        (start, end)
+        for start, end in silence_regions
         if (end - start) >= min_silence_ms
     ]
-    
+
     # Build split points
     split_points = [0]
     current_start = 0
-    
+
     for silence_start, silence_end in valid_silences:
         # Calculate current segment length if split at current pause
         potential_end = silence_start
         segment_length = potential_end - current_start
-        
+
         if segment_length >= max_chunk_ms:
             # Current segment exceeds max length, need to force split at nearest suitable pause
             best_split = _find_best_split_in_range(
-                silence_regions, current_start, silence_start, current_start + max_chunk_ms
+                silence_regions,
+                current_start,
+                silence_start,
+                current_start + max_chunk_ms,
             )
             # Avoid adding duplicate split points
             if best_split != split_points[-1]:
                 split_points.append(best_split)
             current_start = best_split
-            
+
             # Recalculate distance to current pause after forced split
             segment_length = silence_start - current_start
             if segment_length >= max_chunk_ms:
                 # Still too long, skip current pause and continue to next
                 continue
-        
+
         # Split at current pause (avoid duplicates)
         if silence_start != split_points[-1]:
             split_points.append(silence_start)
         current_start = silence_end
-    
+
     # Ensure last split point is at audio end
     if split_points[-1] != duration_ms:
         # Check if last segment is too long
@@ -362,29 +394,32 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
         if last_segment_length > max_chunk_ms:
             # Find best split point within last segment
             best_split = _find_best_split_in_range(
-                silence_regions, current_start, duration_ms, current_start + max_chunk_ms
+                silence_regions,
+                current_start,
+                duration_ms,
+                current_start + max_chunk_ms,
             )
             if best_split != split_points[-1]:
                 split_points.append(best_split)
         if duration_ms != split_points[-1]:
             split_points.append(duration_ms)
-    
+
     return split_points
 
 
 def split_audio_smart(file_path, output_dir, max_chunk_ms=270000, min_silence_ms=300):
     """
     Smart audio splitting based on VAD (Voice Activity Detection)
-    
+
     Maintains interface compatibility with the old split_audio but uses VAD internally
     to detect pause positions, trying to split at sentence boundaries to maintain semantic integrity.
-    
+
     Args:
         file_path: Source file path
         output_dir: Output directory
         max_chunk_ms: Maximum segment length (milliseconds), default 270s
         min_silence_ms: Minimum silence length (milliseconds), default 300ms
-        
+
     Returns:
         List[Dict]: List containing segment paths and time offsets
         [
@@ -398,45 +433,50 @@ def split_audio_smart(file_path, output_dir, max_chunk_ms=270000, min_silence_ms
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     # Load audio
     audio = AudioSegment.from_file(file_path)
     duration_ms = len(audio)
-    
+
     # Audio too short, return directly
     if duration_ms <= max_chunk_ms:
         chunk_path = os.path.join(output_dir, "chunk_0.wav")
         audio.export(chunk_path, format="wav")
-        return [{
-            "path": chunk_path,
-            "start_time_sec": 0.0,
-            "end_time_sec": duration_ms / 1000.0
-        }]
-    
+        return [
+            {
+                "path": chunk_path,
+                "start_time_sec": 0.0,
+                "end_time_sec": duration_ms / 1000.0,
+            }
+        ]
+
     # Use VAD to find split points
     split_points = find_split_points(audio, max_chunk_ms, min_silence_ms)
-    
+
     # Export chunks
     chunks_info = []
     for i in range(len(split_points) - 1):
         start_ms = split_points[i]
         end_ms = split_points[i + 1]
-        
+
         chunk = audio[start_ms:end_ms]
         chunk_path = os.path.join(output_dir, f"chunk_{i}.wav")
         chunk.export(chunk_path, format="wav")
-        
-        chunks_info.append({
-            "path": chunk_path,
-            "start_time_sec": start_ms / 1000.0,
-            "end_time_sec": end_ms / 1000.0
-        })
-    
+
+        chunks_info.append(
+            {
+                "path": chunk_path,
+                "start_time_sec": start_ms / 1000.0,
+                "end_time_sec": end_ms / 1000.0,
+            }
+        )
+
     return chunks_info
 
 
 # Keep old function name as alias for backward compatibility
 split_audio = split_audio_smart
+
 
 def cleanup_files(paths):
     """Clean up temporary files and directories"""
@@ -455,99 +495,111 @@ def cleanup_files(paths):
 def add_punctuation_to_segments(full_text, segments, language=None):
     """
     Add punctuation to word-level segments by aligning with the full text.
-    
+
     The ASR model returns word-level segments without punctuation in the 'text' field,
     but the full transcript (full_text) contains proper punctuation. This function
     aligns the segments with the full text to restore punctuation.
-    
+
     For CJK languages (Chinese, Japanese, Korean), punctuation marks are inserted
     as separate segments with approximated timestamps.
-    
+
     Algorithm: O(n) two-pointer alignment with limited look-ahead for robustness.
-    
+
     Args:
         full_text: The full transcript with punctuation (string)
         segments: List of segment dicts with 'start', 'end', 'text' (without punctuation)
         language: Optional language hint ('Chinese', 'English', etc.) for tokenization strategy
-    
+
     Returns:
         List of segment dicts with punctuation added to 'text' field
     """
     if not segments or not full_text:
         return segments
-    
+
     try:
         import re
-        
-        is_cjk = language and language.lower() in ('chinese', 'japanese', 'korean')
-        
+
+        is_cjk = language and language.lower() in ("chinese", "japanese", "korean")
+
         if is_cjk:
             full_tokens = list(full_text)
             full_tokens = [t for t in full_tokens if t.strip()]
         else:
             full_tokens = full_text.split()
-        
+
         num_tokens = len(full_tokens)
-        
+
         full_tokens_normalized = []
         if is_cjk:
             for t in full_tokens:
                 full_tokens_normalized.append(t)
         else:
             for t in full_tokens:
-                norm = re.sub(r'[^\w\s]', '', t).lower().strip()
+                norm = re.sub(r"[^\w\s]", "", t).lower().strip()
                 full_tokens_normalized.append(norm)
-        
+
         segment_words = []
         for seg in segments:
             if is_cjk:
-                segment_words.append(seg['text'])
+                segment_words.append(seg["text"])
             else:
-                word = re.sub(r'[^\w\s]', '', seg['text']).lower().strip()
+                word = re.sub(r"[^\w\s]", "", seg["text"]).lower().strip()
                 segment_words.append(word)
-        
-        cjk_punctuation = set('，。！？；：""''（）【】《》、·~…—·\'\".,!?;:$%&()*+,-./:;<=>?@[\\]^_`{|}~\s0123456789')
-        
+
+        cjk_punctuation = set(
+            '，。！？；：""'
+            "（）【】《》、·~…—·'\".,!?;:$%&()*+,-./:;<=>?@[\\]^_`{|}~\s0123456789"
+        )
+
         def is_punctuation(char, is_cjk_lang):
             if is_cjk_lang:
                 return char in cjk_punctuation
-            return not char.strip() or not re.match(r'[\w]', char)
-        
+            return not char.strip() or not re.match(r"[\w]", char)
+
         num_segments = len(segments)
-        
+
         if is_cjk:
             full_to_segment_map = {}
             segment_idx = 0
             full_idx = 0
             MAX_LOOK_AHEAD = 10
-            
+
             while segment_idx < num_segments and full_idx < num_tokens:
                 seg_word = segment_words[segment_idx]
-                
-                while full_idx < num_tokens and is_punctuation(full_tokens[full_idx], is_cjk):
+
+                while full_idx < num_tokens and is_punctuation(
+                    full_tokens[full_idx], is_cjk
+                ):
                     full_idx += 1
-                
+
                 if full_idx >= num_tokens:
                     break
-                
+
                 full_token_norm = full_tokens_normalized[full_idx]
-                
+
                 if not full_token_norm:
                     full_idx += 1
                     continue
-                
+
                 if seg_word == full_token_norm:
                     full_to_segment_map[full_idx] = segment_idx
                     segment_idx += 1
                     full_idx += 1
                 else:
                     found = False
-                    for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
+                    for offset in range(
+                        1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)
+                    ):
                         look_ahead_idx = full_idx + offset
-                        while look_ahead_idx < num_tokens and is_punctuation(full_tokens[look_ahead_idx], is_cjk):
+                        while look_ahead_idx < num_tokens and is_punctuation(
+                            full_tokens[look_ahead_idx], is_cjk
+                        ):
                             look_ahead_idx += 1
-                        
-                        if look_ahead_idx < num_tokens and full_tokens_normalized[look_ahead_idx] == seg_word:
+
+                        if (
+                            look_ahead_idx < num_tokens
+                            and full_tokens_normalized[look_ahead_idx] == seg_word
+                        ):
                             for skipped in range(full_idx, look_ahead_idx):
                                 full_to_segment_map[skipped] = -1
                             full_idx = look_ahead_idx
@@ -556,103 +608,109 @@ def add_punctuation_to_segments(full_text, segments, language=None):
                             full_idx += 1
                             found = True
                             break
-                    
+
                     if not found:
                         segment_idx += 1
-            
+
             aligned_segments = []
             mapped_segment_indices = set()
-            
+
             for full_idx in range(num_tokens):
                 char = full_tokens[full_idx]
-                
+
                 if is_punctuation(char, is_cjk):
                     next_seg_idx = None
                     prev_seg_idx = None
-                    
+
                     for fi in range(full_idx + 1, num_tokens):
                         if fi in full_to_segment_map and full_to_segment_map[fi] >= 0:
                             next_seg_idx = full_to_segment_map[fi]
                             break
-                    
+
                     for fi in range(full_idx - 1, -1, -1):
                         if fi in full_to_segment_map and full_to_segment_map[fi] >= 0:
                             prev_seg_idx = full_to_segment_map[fi]
                             break
-                    
+
                     if next_seg_idx is not None and next_seg_idx < len(segments):
                         seg = segments[next_seg_idx]
-                        aligned_segments.append({
-                            'start': seg['start'],
-                            'end': seg['start'] + 0.01,
-                            'text': char
-                        })
+                        aligned_segments.append(
+                            {
+                                "start": seg["start"],
+                                "end": seg["start"] + 0.01,
+                                "text": char,
+                            }
+                        )
                     elif prev_seg_idx is not None and prev_seg_idx < len(segments):
                         seg = segments[prev_seg_idx]
-                        aligned_segments.append({
-                            'start': seg['end'],
-                            'end': seg['end'] + 0.01,
-                            'text': char
-                        })
+                        aligned_segments.append(
+                            {
+                                "start": seg["end"],
+                                "end": seg["end"] + 0.01,
+                                "text": char,
+                            }
+                        )
                 else:
                     seg_idx = full_to_segment_map.get(full_idx, -1)
                     if seg_idx >= 0 and seg_idx < len(segments):
                         new_seg = segments[seg_idx].copy()
-                        new_seg['text'] = char
+                        new_seg["text"] = char
                         aligned_segments.append(new_seg)
                         mapped_segment_indices.add(seg_idx)
-            
+
             for seg_idx in range(len(segments)):
                 if seg_idx not in mapped_segment_indices:
                     aligned_segments.append(segments[seg_idx].copy())
-            
-            aligned_segments.sort(key=lambda x: x['start'])
-            
+
+            aligned_segments.sort(key=lambda x: x["start"])
+
             return aligned_segments
         else:
             segment_idx = 0
             full_idx = 0
             aligned_segments = []
             MAX_LOOK_AHEAD = 3
-            
+
             while segment_idx < num_segments and full_idx < num_tokens:
                 seg_word = segment_words[segment_idx]
                 full_token_norm = full_tokens_normalized[full_idx]
-                
+
                 if not full_token_norm:
                     full_idx += 1
                     continue
-                
+
                 if seg_word == full_token_norm:
                     new_seg = segments[segment_idx].copy()
-                    new_seg['text'] = full_tokens[full_idx]
+                    new_seg["text"] = full_tokens[full_idx]
                     aligned_segments.append(new_seg)
                     segment_idx += 1
                     full_idx += 1
                 else:
                     found_offset = 0
-                    for offset in range(1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)):
+                    for offset in range(
+                        1, min(MAX_LOOK_AHEAD + 1, num_tokens - full_idx)
+                    ):
                         if full_tokens_normalized[full_idx + offset] == seg_word:
                             found_offset = offset
                             break
-                    
+
                     if found_offset > 0:
                         full_idx += found_offset
                         new_seg = segments[segment_idx].copy()
-                        new_seg['text'] = full_tokens[full_idx]
+                        new_seg["text"] = full_tokens[full_idx]
                         aligned_segments.append(new_seg)
                         segment_idx += 1
                         full_idx += 1
                     else:
                         aligned_segments.append(segments[segment_idx].copy())
                         segment_idx += 1
-            
+
             while segment_idx < num_segments:
                 aligned_segments.append(segments[segment_idx].copy())
                 segment_idx += 1
-            
+
             return aligned_segments
-    
+
     except Exception as e:
         print(f"⚠️ Warning: Failed to add punctuation to segments: {e}")
         return segments
