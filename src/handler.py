@@ -222,18 +222,13 @@ def handler(job):
                 f"  📝 Processing chunk {idx + 1}/{len(chunks_info)} ({chunk['start_time_sec']:.1f}s - {chunk['end_time_sec']:.1f}s)..."
             )
 
-            try:
-                # Call model for transcription with current context
-                results = model.transcribe(
-                    audio=chunk_path,
-                    language=language,
-                    return_time_stamps=True,
-                    context=current_context,
-                )
-            except Exception as e:
-                # If transcription fails (e.g., empty audio causing forced alignment error), log warning and skip this chunk
-                print(f"  ⚠️ Warning: Failed to transcribe chunk {idx + 1}: {e}")
-                continue
+            # Call model for transcription with current context
+            results = model.transcribe(
+                audio=chunk_path,
+                language=language,
+                return_time_stamps=True,
+                context=current_context,
+            )
 
             res = results[0]
 
