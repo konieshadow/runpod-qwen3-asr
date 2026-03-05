@@ -1,3 +1,4 @@
+import os
 import runpod
 import torch
 from utils import download_audio, split_audio_smart, cleanup_files
@@ -218,19 +219,37 @@ def handler(job):
                 )
                 continue
 
+            # Verify chunk file exists and has valid size
+            if not os.path.exists(chunk_path) or os.path.getsize(chunk_path) < 100:
+                print(
+                    f"  ⏭️ Skipping chunk {idx + 1}/{len(chunks_info)} (invalid or empty file)"
+                )
+                continue
+
             print(
                 f"  📝 Processing chunk {idx + 1}/{len(chunks_info)} ({chunk['start_time_sec']:.1f}s - {chunk['end_time_sec']:.1f}s)..."
             )
 
-            # Call model for transcription with current context
-            results = model.transcribe(
-                audio=chunk_path,
-                language=language,
-                return_time_stamps=True,
-                context=current_context,
-            )
+            try:
+                # Call model for transcription with current context
+                results = model.transcribe(
+                    audio=chunk_path,
+                    language=language,
+                    return_time_stamps=True,
+                    context=current_context,
+                )
 
-            res = results[0]
+                res = results[0]
+            except Exception as chunk_error:
+                error_type = type(chunk_error).__name__
+                error_str = str(chunk_error)
+                if "IndexError" in error_type or "list index out of range" in error_str:
+                    print(f"  ⚠️ Skipping chunk {idx + 1} due to corrupted audio data")
+                else:
+                    print(f"  ⚠️ Error processing chunk {idx + 1}: {chunk_error}")
+                # Skip this chunk and continue with next
+                current_context = None
+                continue
 
             # Handle different return formats (object or dict)
             # Get text
@@ -308,7 +327,6 @@ def handler(job):
 
     except Exception as e:
         import traceback
-        import os
 
         # Print detailed error log to server
         error_trace = traceback.format_exc()
@@ -344,6 +362,8 @@ def handler(job):
             user_message = (
                 "Audio too long or complex to process. Please try a shorter audio file."
             )
+        elif error_type == "IndexError" or "list index out of range" in error_str:
+            user_message = "Audio chunk corrupted or empty. Please try with a different audio file."
         else:
             # Generic error, don't expose internal details
             user_message = f"Processing error ({error_type}). Please try again later."

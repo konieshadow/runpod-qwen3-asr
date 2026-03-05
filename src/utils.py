@@ -358,6 +358,9 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
     split_points = [0]
     current_start = 0
 
+    # Minimum remaining audio length to allow further splitting (60 seconds)
+    min_remaining_ms = 60000
+
     for silence_start, silence_end in valid_silences:
         # Calculate current segment length if split at current pause
         potential_end = silence_start
@@ -371,6 +374,16 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
                 silence_start,
                 current_start + max_chunk_ms,
             )
+            
+            # After forced split, check if remaining would be too short
+            remaining_after_split = duration_ms - silence_end
+            segment_after_split = silence_end - best_split
+            # If remaining after current split + next segment would be short, merge them
+            if segment_after_split + remaining_after_split <= max_chunk_ms:
+                # Don't add this split point, let it merge with next
+                current_start = silence_end
+                continue
+            
             # Avoid adding duplicate split points
             if best_split != split_points[-1]:
                 split_points.append(best_split)
@@ -382,6 +395,19 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
                 # Still too long, skip current pause and continue to next
                 continue
 
+        # Check if remaining audio would be too short to split further
+        remaining_length = duration_ms - silence_end
+        
+        # If current segment + remaining < 270s, merge to avoid too short chunks
+        current_segment_length = silence_end - split_points[-1]
+        if current_segment_length + remaining_length <= max_chunk_ms:
+            continue
+        
+        if remaining_length < min_remaining_ms:
+            # Remaining audio is too short, don't split here
+            # Let it be part of current segment
+            continue
+
         # Split at current pause (avoid duplicates)
         if silence_start != split_points[-1]:
             split_points.append(silence_start)
@@ -389,20 +415,27 @@ def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
 
     # Ensure last split point is at audio end
     if split_points[-1] != duration_ms:
-        # Check if last segment is too long
-        last_segment_length = duration_ms - current_start
-        if last_segment_length > max_chunk_ms:
-            # Find best split point within last segment
-            best_split = _find_best_split_in_range(
-                silence_regions,
-                current_start,
-                duration_ms,
-                current_start + max_chunk_ms,
-            )
-            if best_split != split_points[-1]:
-                split_points.append(best_split)
-        if duration_ms != split_points[-1]:
-            split_points.append(duration_ms)
+        # Check if remaining audio is short enough to not split further
+        remaining_length = duration_ms - current_start
+        if remaining_length <= max_chunk_ms:
+            # Remaining audio is short enough, no more splitting needed
+            if duration_ms != split_points[-1]:
+                split_points.append(duration_ms)
+        else:
+            # Remaining audio still too long, need to find split point
+            last_segment_length = duration_ms - current_start
+            if last_segment_length > max_chunk_ms:
+                # Find best split point within last segment
+                best_split = _find_best_split_in_range(
+                    silence_regions,
+                    current_start,
+                    duration_ms,
+                    current_start + max_chunk_ms,
+                )
+                if best_split != split_points[-1]:
+                    split_points.append(best_split)
+            if duration_ms != split_points[-1]:
+                split_points.append(duration_ms)
 
     return split_points
 
