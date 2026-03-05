@@ -242,7 +242,7 @@ def handler(job):
                 else ""
             )
             if text:
-                full_text += text + " "
+                full_text += text + "\n"
 
             # Record detected language
             language_val = None
@@ -269,6 +269,7 @@ def handler(job):
             if timestamps_data:
                 for segment in timestamps_data:
                     adjusted_segment = _parse_timestamp_segment(segment, time_offset)
+                    adjusted_segment["chunk_index"] = idx
                     full_transcript.append(adjusted_segment)
 
             # If use_previous_context is enabled, use current chunk's text as context for next chunk
