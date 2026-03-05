@@ -270,6 +270,21 @@ def handler(job):
                 if isinstance(res, dict)
                 else ""
             )
+
+            # Remove duplicate prefix caused by context continuation
+            # When model uses context, it sometimes repeats part of context at the beginning
+            if use_previous_context and text and current_context:
+                context_lower = current_context.lower()
+                text_lower = text.lower()
+                # Check if text starts with content from previous context
+                # Find the longest matching suffix of context that matches prefix of text
+                for i in range(len(context_lower), 0, -1):
+                    context_suffix = context_lower[-i:]
+                    if text_lower.startswith(context_suffix):
+                        # Remove the duplicate prefix
+                        text = text[i:]
+                        break
+
             if text:
                 full_text += text + chunk_joiner
                 successful_chunk_count += 1
