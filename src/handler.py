@@ -201,6 +201,7 @@ def handler(job):
         full_transcript = []
         full_text = ""
         detected_languages = []
+        successful_chunk_count = 0
 
         # Initialize context: use initial_context or None
         current_context = initial_context if initial_context else None
@@ -263,6 +264,7 @@ def handler(job):
             )
             if text:
                 full_text += text + chunk_joiner
+                successful_chunk_count += 1
 
             # Record detected language
             language_val = None
@@ -289,7 +291,7 @@ def handler(job):
             if timestamps_data:
                 for segment in timestamps_data:
                     adjusted_segment = _parse_timestamp_segment(segment, time_offset)
-                    adjusted_segment["chunk_index"] = idx
+                    adjusted_segment["chunk_index"] = successful_chunk_count
                     full_transcript.append(adjusted_segment)
 
             # If use_previous_context is enabled, use current chunk's text as context for next chunk
