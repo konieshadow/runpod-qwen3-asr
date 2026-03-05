@@ -8,6 +8,11 @@ import time
 from pydub import AudioSegment
 
 
+# 合并阈值：限制合并后的分段长度，防止GPU OOM
+# 对于24GB VRAM，设置为 max_chunk_ms 的 65% 左右，约175秒
+MERGE_THRESHOLD = 0.65
+
+
 def download_audio(url, save_path, timeout=300, convert_to_wav=True):
     """Download audio from URL to local path with optional format conversion
 
@@ -289,62 +294,59 @@ def _find_best_split_in_range(silence_regions, start_ms, end_ms, target_ms):
 
 def _get_silence_regions(audio_segment, min_silence_ms):
     """获取音频中的静音区间
-    
+
     Args:
         audio_segment: pydub AudioSegment
         min_silence_ms: 最小静音时长阈值
-    
+
     Returns:
         List[Tuple[int, int]]: 静音区间列表 [(start_ms, end_ms), ...]
     """
     vad_helper = WebRTCVADHelper(aggressiveness=2)
     speech_regions = vad_helper.detect_speech_regions(audio_segment)
-    
+
     if not speech_regions:
         return []
-    
+
     duration_ms = len(audio_segment)
     silence_regions = []
-    
+
     # 开头的静音
     if speech_regions[0][0] > 0:
         silence_regions.append((0, speech_regions[0][0]))
-    
+
     # 语音区域之间的静音
     for i in range(len(speech_regions) - 1):
         silence_start = speech_regions[i][1]
         silence_end = speech_regions[i + 1][0]
         if silence_end > silence_start:
             silence_regions.append((silence_start, silence_end))
-    
+
     # 结尾的静音
     if speech_regions[-1][1] < duration_ms:
         silence_regions.append((speech_regions[-1][1], duration_ms))
-    
+
     # 过滤短静音
-    valid_silences = [
-        (s, e) for s, e in silence_regions
-        if (e - s) >= min_silence_ms
-    ]
-    
+    valid_silences = [(s, e) for s, e in silence_regions if (e - s) >= min_silence_ms]
+
     return valid_silences
 
 
 def _pre_split_at_silence_midpoints(audio_segment, max_chunk_ms, min_silence_ms):
     """Step 1 & 2: 在静音区间中点预分割
-    
+
     Returns:
         List[Tuple[int, int]]: 初始分段列表 [(start_ms, end_ms), ...]
     """
     duration_ms = len(audio_segment)
-    
+
     # 音频太短，不需要分割
     if duration_ms <= max_chunk_ms:
         return [(0, duration_ms)]
-    
+
     # 无语音时均匀分割
     silence_regions = _get_silence_regions(audio_segment, min_silence_ms)
-    
+
     if not silence_regions:
         # 无有效静音区间，按最大长度均匀分割
         segments = []
@@ -354,7 +356,7 @@ def _pre_split_at_silence_midpoints(audio_segment, max_chunk_ms, min_silence_ms)
             current += max_chunk_ms
         segments.append((current, duration_ms))
         return segments
-    
+
     # 在每个静音区间的中点预分割
     split_points = [0]
     for silence_start, silence_end in silence_regions:
@@ -362,45 +364,58 @@ def _pre_split_at_silence_midpoints(audio_segment, max_chunk_ms, min_silence_ms)
         if midpoint > split_points[-1] and midpoint < duration_ms:
             split_points.append(midpoint)
     split_points.append(duration_ms)
-    
+
     # 转换为分段列表
     segments = []
     for i in range(len(split_points) - 1):
         segments.append((split_points[i], split_points[i + 1]))
-    
+
     return segments
 
 
-def _merge_consecutive_short_segments(segments, max_chunk_ms):
+def _merge_consecutive_short_segments(segments, max_chunk_ms, merge_threshold=0.65):
     """Step 3a: 合并连续短分段
-    
-    规则：连续分段总时长 < max_chunk_ms 时合并
+
+    规则：连续分段总时长 < max_chunk_ms * merge_threshold 时合并
     迭代处理直到没有连续短分段
+
+    Args:
+        segments: 分段列表 [(start_ms, end_ms), ...]
+        max_chunk_ms: 最大分段时长（毫秒）
+        merge_threshold: 合并阈值（0-1），限制合并后的分段不超过 max_chunk_ms * merge_threshold
+                        默认0.65，即270秒的分段合并后不超过175秒
+
+    Returns:
+        List[Tuple[int, int]]: 合并后的分段列表
     """
     if len(segments) <= 1:
         return segments
-    
+
+    # 计算实际的合并上限
+    merge_limit = int(max_chunk_ms * merge_threshold)
+
     # 迭代合并，直到没有可合并的连续短分段
     while True:
         merged = []
         i = 0
         changed = False
-        
+
         while i < len(segments):
             if i == len(segments) - 1:
                 # 最后一个分段
                 merged.append(segments[i])
                 i += 1
                 continue
-            
+
             current_start, current_end = segments[i]
             next_start, next_end = segments[i + 1]
-            
+
             current_len = current_end - current_start
             next_len = next_end - next_start
             combined_len = current_len + next_len
-            
-            if combined_len < max_chunk_ms:
+
+            # 关键修改：使用 merge_limit 而不是 max_chunk_ms
+            if combined_len < merge_limit:
                 # 合并这两个分段
                 merged.append((current_start, next_end))
                 i += 2
@@ -408,80 +423,96 @@ def _merge_consecutive_short_segments(segments, max_chunk_ms):
             else:
                 merged.append(segments[i])
                 i += 1
-        
+
         if not changed:
             break
         segments = merged
         if len(segments) <= 1:
             break
-    
+
     return segments
 
 
 def _force_split_long_segments(segments, max_chunk_ms):
     """Step 3b: 强制分割超长分段
-    
+
     对时长 > max_chunk_ms 的分段，在其中点均匀分割
     """
     result = []
-    
+
     for start_ms, end_ms in segments:
         length = end_ms - start_ms
-        
+
         if length <= max_chunk_ms:
             result.append((start_ms, end_ms))
         else:
             # 需要分割
             num_splits = (length + max_chunk_ms - 1) // max_chunk_ms  # 向上取整
             split_len = length // num_splits
-            
+
             current = start_ms
             for _ in range(num_splits):
                 chunk_end = min(current + split_len, end_ms)
                 result.append((current, chunk_end))
                 current = chunk_end
-    
+
     return result
 
 
-def find_split_points(audio_segment, max_chunk_ms=270000, min_silence_ms=300):
+def find_split_points(
+    audio_segment,
+    max_chunk_ms=270000,
+    min_silence_ms=300,
+    merge_threshold=MERGE_THRESHOLD,
+):
     """
     新的分段逻辑：VAD预分割 + 后处理
-    
+
     流程：
     1. VAD静音检测 → 静音区间
     2. 在静音区间中点预分割 → 初始分段列表
     3. 后处理:
-       - 3a. 合并连续短分段（连续总和 < max_chunk_ms）
+       - 3a. 合并连续短分段（连续总和 < max_chunk_ms * merge_threshold）
        - 3b. 强制分割超长分段（> max_chunk_ms）
-    
+
     Args:
         audio_segment: pydub AudioSegment
         max_chunk_ms: Maximum segment length (milliseconds)
         min_silence_ms: Minimum silence length (milliseconds)
-    
+        merge_threshold: 合并阈值，限制合并后的分段长度
+
     Returns:
         List[int]: List of split points (milliseconds), including start 0 and end duration
     """
     duration_ms = len(audio_segment)
-    
+
     # Step 1 & 2: 预分割
-    segments = _pre_split_at_silence_midpoints(audio_segment, max_chunk_ms, min_silence_ms)
-    
-    # Step 3a: 合并连续短分段
-    segments = _merge_consecutive_short_segments(segments, max_chunk_ms)
-    
+    segments = _pre_split_at_silence_midpoints(
+        audio_segment, max_chunk_ms, min_silence_ms
+    )
+
+    # Step 3a: 合并连续短分段（传递merge_threshold）
+    segments = _merge_consecutive_short_segments(
+        segments, max_chunk_ms, merge_threshold
+    )
+
     # Step 3b: 强制分割超长分段
     segments = _force_split_long_segments(segments, max_chunk_ms)
-    
+
     # 转换为 split_points 格式
     split_points = [s[0] for s in segments]
     split_points.append(segments[-1][1])
-    
+
     return split_points
 
 
-def split_audio_smart(file_path, output_dir, max_chunk_ms=270000, min_silence_ms=300):
+def split_audio_smart(
+    file_path,
+    output_dir,
+    max_chunk_ms=270000,
+    min_silence_ms=300,
+    merge_threshold=MERGE_THRESHOLD,
+):
     """
     Smart audio splitting based on VAD (Voice Activity Detection)
 
@@ -493,6 +524,7 @@ def split_audio_smart(file_path, output_dir, max_chunk_ms=270000, min_silence_ms
         output_dir: Output directory
         max_chunk_ms: Maximum segment length (milliseconds), default 270s
         min_silence_ms: Minimum silence length (milliseconds), default 300ms
+        merge_threshold: 合并阈值，控制合并后的分段长度上限
 
     Returns:
         List[Dict]: List containing segment paths and time offsets
@@ -525,7 +557,9 @@ def split_audio_smart(file_path, output_dir, max_chunk_ms=270000, min_silence_ms
         ]
 
     # Use VAD to find split points
-    split_points = find_split_points(audio, max_chunk_ms, min_silence_ms)
+    split_points = find_split_points(
+        audio, max_chunk_ms, min_silence_ms, merge_threshold
+    )
 
     # Export chunks
     chunks_info = []

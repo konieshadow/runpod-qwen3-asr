@@ -26,7 +26,7 @@ def init_model():
             # Load using vLLM backend for GPU acceleration
             model = Qwen3ASRModel.LLM(
                 model=MODEL_DIR,
-                gpu_memory_utilization=0.8,  # Adjust based on GPU memory, 0.8 is suitable for 24GB GPUs running other tasks
+                gpu_memory_utilization=0.7,  # Adjust based on GPU memory, 0.7 is suitable for 24GB GPUs running other tasks
                 max_new_tokens=4096,
                 forced_aligner=ALIGNER_DIR,
                 forced_aligner_kwargs={
