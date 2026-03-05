@@ -64,7 +64,8 @@ Workers: Min 0, Max 5 (根据需求)。
     "audio_url": "https://github.com/runpod-workers/sample-inputs/raw/main/audio/gettysburg.wav",
     "language": "auto",
     "initial_context": "",
-    "use_previous_context": false
+    "use_previous_context": false,
+    "chunk_joiner": "\n"
   }
 }
 ```
@@ -116,6 +117,12 @@ Workers: Min 0, Max 5 (根据需求)。
 - `initial_context`: 在转录第一个音频片段前提供前置文本，帮助模型理解上下文，提高转录准确性。
 - `use_previous_context`: 对于长音频切分后的连续转录，开启此选项可以将上一个片段的转录结果（最后 200 字符）传递给下一个片段，保持上下文的连贯性。
 
+### 其他参数说明
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `chunk_joiner` | string | `"\n"` | 用于拼接多个音频分片文本的分隔符。使用 `" "` 可获取不带换行的连续文本 |
+
 > **注意**: 如果不指定 `language` 参数或使用 `"auto"`，模型将自动检测音频语言。
 
 ### 响应数据格式
@@ -160,6 +167,7 @@ Workers: Min 0, Max 5 (根据需求)。
 | `output.segments[].start` | number | 片段开始时间（秒） |
 | `output.segments[].end` | number | 片段结束时间（秒） |
 | `output.segments[].text` | string | 片段文本内容 |
+| `output.segments[].chunk_index` | number | 该片段所属音频分片的索引（从 0 开始） |
 
 
 注意事项

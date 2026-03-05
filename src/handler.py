@@ -126,6 +126,7 @@ def handler(job):
     language = job_input.get("language", None)
     initial_context = job_input.get("initial_context", None)
     use_previous_context = job_input.get("use_previous_context", False)
+    chunk_joiner = job_input.get("chunk_joiner", "\n")
 
     # Validate language parameter
     VALID_LANGUAGES = [
@@ -261,7 +262,7 @@ def handler(job):
                 else ""
             )
             if text:
-                full_text += text + "\n"
+                full_text += text + chunk_joiner
 
             # Record detected language
             language_val = None

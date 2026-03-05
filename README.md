@@ -57,7 +57,8 @@ docker push your-username/qwen3-asr-serverless:v1
     "audio_url": "https://github.com/runpod-workers/sample-inputs/raw/main/audio/gettysburg.wav",
     "language": "auto",
     "initial_context": "",
-    "use_previous_context": false
+    "use_previous_context": false,
+    "chunk_joiner": "\n"
   }
 }
 ```
@@ -109,6 +110,12 @@ docker push your-username/qwen3-asr-serverless:v1
 - `initial_context`: Provides pre-text before transcribing the first audio segment, helping the model understand context and improve transcription accuracy.
 - `use_previous_context`: For continuous transcription of long audio segments, enabling this option passes the previous segment's transcription result (last 200 characters) to the next segment, maintaining context coherence.
 
+### Other Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `chunk_joiner` | string | `"\n"` | Separator used to concatenate text from multiple audio chunks. Use `" "` for space to get continuous text without line breaks |
+
 > **Note**: If `language` parameter is not specified or set to `"auto"`, the model will automatically detect the audio language.
 
 ### Response Format
@@ -153,6 +160,7 @@ docker push your-username/qwen3-asr-serverless:v1
 | `output.segments[].start` | number | Segment start time (seconds) |
 | `output.segments[].end` | number | Segment end time (seconds) |
 | `output.segments[].text` | string | Segment text content |
+| `output.segments[].chunk_index` | number | Index of the audio chunk this segment belongs to (0-based) |
 
 ## Notes
 
