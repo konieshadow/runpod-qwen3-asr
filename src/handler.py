@@ -247,11 +247,19 @@ def handler(job):
                 error_str = str(chunk_error)
                 if "IndexError" in error_type or "list index out of range" in error_str:
                     print(f"  ⚠️ Skipping chunk {idx + 1} due to corrupted audio data")
+                    current_context = None
+                    continue
+                elif (
+                    "OutOfMemory" in error_type
+                    or "CUDA" in error_str
+                    and "out of memory" in error_str.lower()
+                ):
+                    print(f"  ❌ CUDA out of memory error, aborting: {chunk_error}")
+                    raise chunk_error
                 else:
                     print(f"  ⚠️ Error processing chunk {idx + 1}: {chunk_error}")
-                # Skip this chunk and continue with next
-                current_context = None
-                continue
+                    current_context = None
+                    continue
 
             # Handle different return formats (object or dict)
             # Get text
