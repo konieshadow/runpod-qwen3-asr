@@ -12,6 +12,8 @@ ALIGNER_NAME = "Qwen/Qwen3-ForcedAligner-0.6B"
 MODEL_DIR = "/models/asr"
 ALIGNER_DIR = "/models/aligner"
 
+GPU_MEMORY_UTILIZATION = float(os.getenv("GPU_MEMORY_UTILIZATION", 0.7))
+
 # Global variable to cache model
 model = None
 
@@ -26,7 +28,7 @@ def init_model():
             # Load using vLLM backend for GPU acceleration
             model = Qwen3ASRModel.LLM(
                 model=MODEL_DIR,
-                gpu_memory_utilization=0.7,  # Adjust based on GPU memory, 0.7 is suitable for 24GB GPUs running other tasks
+                gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
                 max_new_tokens=4096,
                 forced_aligner=ALIGNER_DIR,
                 forced_aligner_kwargs={
@@ -193,9 +195,7 @@ def handler(job):
 
         # 3. Split audio intelligently using VAD
         print("✂️ Splitting audio into chunks using VAD...")
-        chunks_info = split_audio_smart(
-            local_audio_path, chunk_dir, max_chunk_ms=270000, min_silence_ms=300
-        )
+        chunks_info = split_audio_smart(local_audio_path, chunk_dir)
         print(f"📦 Audio split into {len(chunks_info)} chunks")
 
         full_transcript = []

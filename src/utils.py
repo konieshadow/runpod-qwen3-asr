@@ -2,15 +2,12 @@ import os
 import requests
 import shutil
 import webrtcvad
-import collections
-import contextlib
 import time
 from pydub import AudioSegment
 
+MAX_CHUNK_MS = int(os.getenv("MAX_CHUNK_MS", 270000))
 
-# 合并阈值：限制合并后的分段长度，防止GPU OOM
-# 对于24GB VRAM，设置为 max_chunk_ms 的 65% 左右，约175秒
-MERGE_THRESHOLD = 0.65
+MERGE_THRESHOLD = float(os.getenv("MERGE_THRESHOLD", 0.65))
 
 
 def download_audio(url, save_path, timeout=300, convert_to_wav=True):
@@ -123,10 +120,10 @@ def download_audio(url, save_path, timeout=300, convert_to_wav=True):
             f"Audio duration too short: {duration_sec:.2f}s (minimum 0.1s)"
         )
 
-    if duration_sec > 3600 * 4:  # 4 hours
+    if duration_sec > 3600 * 7:  # 7 hours
         os.remove(temp_path)
         raise RuntimeError(
-            f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 4 hours)"
+            f"Audio duration too long: {duration_sec / 3600:.2f} hours (maximum 7 hours)"
         )
 
     # Print audio info
@@ -274,7 +271,7 @@ def _find_best_split_in_range(silence_regions, start_ms, end_ms, target_ms):
 
     if not valid_silences:
         # No suitable pause, forced to split at maximum length
-        return min(start_ms + 270000, end_ms)
+        return min(start_ms + MAX_CHUNK_MS, end_ms)
 
     # Find the pause midpoint closest to target
     best_split = None
@@ -289,7 +286,9 @@ def _find_best_split_in_range(silence_regions, start_ms, end_ms, target_ms):
             best_distance = distance
             best_split = midpoint
 
-    return best_split if best_split is not None else min(start_ms + 270000, end_ms)
+    return (
+        best_split if best_split is not None else min(start_ms + MAX_CHUNK_MS, end_ms)
+    )
 
 
 def _get_silence_regions(audio_segment, min_silence_ms):
@@ -461,7 +460,7 @@ def _force_split_long_segments(segments, max_chunk_ms):
 
 def find_split_points(
     audio_segment,
-    max_chunk_ms=270000,
+    max_chunk_ms=MAX_CHUNK_MS,
     min_silence_ms=300,
     merge_threshold=MERGE_THRESHOLD,
 ):
@@ -509,7 +508,7 @@ def find_split_points(
 def split_audio_smart(
     file_path,
     output_dir,
-    max_chunk_ms=270000,
+    max_chunk_ms=MAX_CHUNK_MS,
     min_silence_ms=300,
     merge_threshold=MERGE_THRESHOLD,
 ):
